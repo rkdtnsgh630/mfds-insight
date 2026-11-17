@@ -12,7 +12,16 @@
 3. 각 API 검색 요청변수 동작과 numOfRows 상한 시험
 4. 행정처분 538건이 공개기간 내 건만인지 확인 (`RLS_END_DATE`)
 
-## Phase 2 진입 준비 (수집 기반)
+## Phase 2 진행 순서 (2026-11-17 갱신)
+
+1. **사용자**: 저장소 Settings → Secrets → Actions에 `MFDS_SERVICE_KEY` 등록
+2. 시험 실행: Actions → collect → Run workflow, `max_pages=1` (DB 게시 안 함) → 단위 시험 통과·전 API 응답 확인
+3. 첫 정식 실행: `tier:core` 전체 → 기준선 DB를 Release에 게시
+4. 실행 결과로 키 설계 점검: `key_collisions`·`duplicates`가 많은 API는 `apis.py`의 key 수정
+5. heavy 등급 별도 실행 (DUR 병용금기 등), DB 크기 확인
+6. 표준화 계층(company·product 등)과 사이트용 데이터 내보내기 설계
+
+## Phase 2 진입 준비 (수집 기반) — 이전 메모
 
 - 인증키: 로컬 환경변수 `MFDS_SERVICE_KEY`로 관리 (사용자가 직접 설정). 저장소·문서에 기록 금지
 - 수집기 요구사항 (실측 기반):

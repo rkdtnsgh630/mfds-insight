@@ -23,6 +23,16 @@
 | 권장 14개 활용신청 (사용자 승인 후) | **14개 모두 즉시 승인**, 계정 승인 합계 24건 | 마이페이지 > 활용신청 현황 |
 | 권장 14개 실제 호출 | 22개 오퍼레이션 중 21개 200/00. 필드·건수·BIZRNO 유무 실측 | API_CATALOG.md E-4 |
 
+## Phase 2 (수집 기반) — 2026-11-17 시작
+
+| 항목 | 결과 | 근거 |
+|---|---|---|
+| GitHub 저장소 생성 (사용자 지시) | 공개 저장소 https://github.com/rkdtnsgh630/mfds-insight | |
+| 수집기 1차 구현 | `collector/` (등록 API 36개 오퍼레이션, 재시도·정규화·SQLite 원본·변경 이력) | README.md, DATA_MODEL.md |
+| 단위 시험 작성 | `tests/test_collector.py` 16개 | **이 PC에는 Python이 없어 로컬 실행 안 함** → Actions에서 실행 예정 |
+| Actions 워크플로 | `collect.yml` (매일 03:00 KST, 수동 실행, Release 게시) | ARCHITECTURE.md |
+| 실제 수집 실행 | **미수행** | Secret `MFDS_SERVICE_KEY` 등록 필요 (사용자 직접) |
+
 ## 미완료 작업
 
 | 항목 | 상태 | 비고 |
