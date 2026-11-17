@@ -14,8 +14,8 @@
 
 ## Phase 2 진행 순서 (2026-11-17 갱신)
 
-1. **사용자**: 저장소 Settings → Secrets → Actions에 `MFDS_SERVICE_KEY` 등록
-2. 시험 실행: Actions → collect → Run workflow, `max_pages=1` (DB 게시 안 함) → 단위 시험 통과·전 API 응답 확인
+1. ~~Secret 등록~~ 완료 (2026-11-18)
+2. ~~시험 실행~~ 완료: 단위 시험 통과, 35/36 응답 (희귀의약품 403)
 3. 첫 정식 실행: `tier:core` 전체 → 기준선 DB를 Release에 게시
 4. 실행 결과로 키 설계 점검: `key_collisions`·`duplicates`가 많은 API는 `apis.py`의 key 수정
 5. heavy 등급 별도 실행 (DUR 병용금기 등), DB 크기 확인
