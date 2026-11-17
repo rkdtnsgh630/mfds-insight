@@ -1,0 +1,74 @@
+no	category	service_name	data_go_kr_id	data_go_kr_url	format
+1	DUR	DUR유형별 성분 현황	15056780	http://data.go.kr/data/15056780/openapi.do	OpenAPI
+2	DUR	DUR유형별 품목 현황	15059486	http://data.go.kr/data/15059486/openapi.do	OpenAPI
+3	품목	의약품 임상시험	15056835	http://data.go.kr/data/15056835/openapi.do	OpenAPI
+4	품목	의약품 행정처분	15058457	http://data.go.kr/data/15058457/openapi.do	OpenAPI
+5	품목	의약품 공급부족	15056886	http://data.go.kr/data/15056886/openapi.do	OpenAPI
+6	품목	의약품 특허정보	15057623	http://data.go.kr/data/15057623/openapi.do	OpenAPI
+7	품목	의약품 제품허가목록	15095677	https://www.data.go.kr/data/15095677/openapi.do	OpenAPI
+8	품목	의약품 생산수입실적	15056880	http://data.go.kr/data/15056880/openapi.do	OpenAPI
+9	품목	의약품 회수판매중지	15059114	http://data.go.kr/data/15059114/openapi.do	OpenAPI
+10	품목	의약품 생산수입공급중단	15057899	http://data.go.kr/data/15057899/openapi.do	OpenAPI
+11	낱알	의약품 낱알식별	15057639	http://data.go.kr/data/15057639/openapi.do	OpenAPI
+12	품목	의약품 제품허가 상세정보	15095677	https://www.data.go.kr/data/15095677/openapi.do	OpenAPI
+13	품목	마약류 종합정보	15058963	http://data.go.kr/data/15058963/openapi.do	OpenAPI
+14	품목	FDA 오렌지북 특허정보 서비스	15057931	http://data.go.kr/data/15057931/openapi.do	OpenAPI
+15	품목	의약품심판현황	15056710	http://data.go.kr/data/15056710/openapi.do	OpenAPI
+16	품목	FDA Paragraph IV조회	15058137	http://data.go.kr/data/15058137/openapi.do	OpenAPI
+17	품목	마약류 및 원료물질 정보조회	15058041	http://data.go.kr/data/15058041/openapi.do	OpenAPI
+18	품목	의약품재심사조회	15058034	http://data.go.kr/data/15058034/openapi.do	OpenAPI
+19	품목	의약품재평가조회	15057382	http://data.go.kr/data/15057382/openapi.do	OpenAPI
+20	품목	인체조직은행 정보조회	15059492	http://data.go.kr/data/15059492/openapi.do	OpenAPI
+21	품목	희귀의약품 정보조회	15057935	http://data.go.kr/data/15057935/openapi.do	OpenAPI
+22	품목	의약품 업소 허가정보_상세조회	15095682	https://www.data.go.kr/data/15095682/openapi.do	OpenAPI
+23	품목	의약품 업소 허가정보_목록조회	15095682	https://www.data.go.kr/data/15095682/openapi.do	OpenAPI
+24	품목	화장품 제조(판매)업 정보	15020628	http://data.go.kr/data/15020628/openapi.do	OpenAPI
+25	품목	마약류 및 원료물질 정보	15058041	http://data.go.kr/data/15058041/openapi.do	OpenAPI
+26	품목	기능성화장품 보고품목 정보_업체정보	15095680	https://www.data.go.kr/data/15095680/openapi.do	OpenAPI
+27	품목	필수의약품	15058207	http://data.go.kr/data/15058207/openapi.do	OpenAPI
+28	품목	안전성서한 공고	15059182	https://www.data.go.kr/data/15059182/openapi.do	OpenAPI
+29	품목	실험동물 시설 등록현황	15056518	http://data.go.kr/data/15056518/openapi.do	OpenAPI
+30	품목	의약품 제품 허가정보_주성분 상세조회	15095677	https://www.data.go.kr/data/15095677/openapi.do	OpenAPI
+31	품목	기능성화장품 심사품목 정보	15056939	http://data.go.kr/data/15056939/openapi.do	OpenAPI
+32	품목	국가출하승인	15084883	https://www.data.go.kr/data/15084883/openapi.do	OpenAPI
+33	품목	기능성화장품 보고품목 정보_품목정보	15095680	https://www.data.go.kr/data/15095680/openapi.do	OpenAPI
+34	품목	생동성인정품목공고	15058447	http://data.go.kr/data/15058447/openapi.do	OpenAPI
+35	품목	대조약공고	15058806	http://data.go.kr/data/15058806/openapi.do	OpenAPI
+36	품목	DMF공고	15057075	http://data.go.kr/data/15057075/openapi.do	OpenAPI
+37	품목	제네릭의약품묶음정보	15063908	https://www.data.go.kr/data/15063908/openapi.do	OpenAPI
+38	품목	e약은요정보	15075057	https://www.data.go.kr/data/15075057/openapi.do	OpenAPI
+39	품목	임상시험 계획 상세 정보	15090589	https://www.data.go.kr/data/15090589/openapi.do	OpenAPI
+40	품목	임상시험 계획 선정기준 정보	15090368	https://www.data.go.kr/data/15090368/openapi.do	OpenAPI
+41	품목	임상시험 계획 제외기준 정보	15090376	https://www.data.go.kr/data/15090376/openapi.do	OpenAPI
+42	품목	임상시험 계획 시험책임자 정보	15090384	https://www.data.go.kr/data/15090384/openapi.do	OpenAPI
+43	품목	코로나관련 임상시험 계획 상세 정보	15090388	https://www.data.go.kr/data/15090388/openapi.do	OpenAPI
+44	품목	코로나관련 임상시험 계획 선정기준 정보	15090388	https://www.data.go.kr/data/15090388/openapi.do	OpenAPI
+45	품목	코로나관련 임상시험 계획 제외기준 정보	15090388	https://www.data.go.kr/data/15090388/openapi.do	OpenAPI
+46	품목	코로나관련 임상시험 계획 시험책임자 정보	15090388	https://www.data.go.kr/data/15090388/openapi.do	OpenAPI
+47	품목	해외제조소 정보	15090422	https://www.data.go.kr/data/15090422/openapi.do	OpenAPI
+48	품목	마스크 허가현황 기본정보	15094473	https://www.data.go.kr/data/15094473/openapi.do	OpenAPI
+49	품목	마스크 회수 제품 정보	15094578	https://www.data.go.kr/data/15094578/openapi.do	OpenAPI
+50	품목	마스크 회수 제품 상세정보	15094578	https://www.data.go.kr/data/15094578/openapi.do	OpenAPI
+51	품목	마스크 관련 업체 행정처분 정보	15094457	https://www.data.go.kr/data/15094457/openapi.do	OpenAPI
+52	품목	감염병치료제의약품 제품정보 조회	15096118	https://www.data.go.kr/data/15096118/openapi.do	OpenAPI
+53	품목	통지의약품정보	15097199	https://www.data.go.kr/data/15097199/openapi.do	OpenAPI
+54	품목	우선판매품목허가의약품 정보	15097204	https://www.data.go.kr/data/15097204/openapi.do	OpenAPI
+55	품목	의약품GMP적합판정서발급현황	15097207	https://www.data.go.kr/data/15097207/openapi.do	OpenAPI
+56	품목	안전상비의약품정보	15097208	https://www.data.go.kr/data/15097208/openapi.do	OpenAPI
+57	품목	1일최대투여량	15098095	https://www.data.go.kr/data/15098095/openapi.do	OpenAPI
+58	품목	화장품원료성분	15111774	https://www.data.go.kr/data/15111774/openapi.do	OpenAPI
+59	품목	화장품사용제한원료	15111772	https://www.data.go.kr/data/15111772/openapi.do	OpenAPI
+60	품목	화장품사용제한원료 배합금지국가 정보	15111772	https://www.data.go.kr/data/15111772/openapi.do	OpenAPI
+61	품목	의약외품 제품 허가정보	15095679	https://www.data.go.kr/data/15095679/openapi.do	OpenAPI
+62	품목	긴급도입 보험등재 의약품	15107573	https://www.data.go.kr/data/15107573/openapi.do	OpenAPI
+63	품목	긴급도입 보험미등재 의약품	15107573	https://www.data.go.kr/data/15107573/openapi.do	OpenAPI
+64	품목	자가치료용 의약품	15107573	https://www.data.go.kr/data/15107573/openapi.do	OpenAPI
+65	품목	자가치료용 마약류 의약품	15107573	https://www.data.go.kr/data/15107573/openapi.do	OpenAPI
+66	품목	긴급도입 마약류 의약품	15107573	https://www.data.go.kr/data/15107573/openapi.do	OpenAPI
+67	품목	바이오의약품해외임상승인현황	15106956	https://www.data.go.kr/data/15106956/openapi.do	OpenAPI
+68	품목	바이오의약품해외허가제품	15106957	https://www.data.go.kr/data/15106957/openapi.do	OpenAPI
+69	품목	화장품 회수 판매중지 정보	15106958	https://www.data.go.kr/data/15106958/openapi.do	OpenAPI
+70	품목	혈액제제 제조소 정보	15117412	https://www.data.go.kr/data/15117412/openapi.do	OpenAPI
+71	품목	의약품 국내 특허현황	15117409	https://www.data.go.kr/data/15117409/openapi.do	OpenAPI
+72	품목	장애인 의약품 안전사용 정보(음성·수어영상)	15124932	https://www.data.go.kr/data/15124932/openapi.do	OpenAPI
+73	품목	희귀의약품 성분정보조회	15073980	https://www.data.go.kr/data/15073980/openapi.do	OpenAPI

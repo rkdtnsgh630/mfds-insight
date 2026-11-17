@@ -1,0 +1,86 @@
+name: collect
+
+on:
+  schedule:
+    - cron: "0 18 * * *"   # 매일 03:00 KST
+  workflow_dispatch:
+    inputs:
+      apis:
+        description: "수집 대상 (tier:core | tier:heavy | tier:core+heavy | all | id1,id2)"
+        required: false
+        default: "tier:core"
+      max_pages:
+        description: "API당 최대 페이지 (0=전체). 0이 아니면 시험 실행으로 보고 DB를 게시하지 않음"
+        required: false
+        default: "0"
+      rows:
+        description: "페이지당 건수"
+        required: false
+        default: "500"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: collect
+  cancel-in-progress: false
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: 단위 시험
+        run: python -m unittest discover -s tests -v
+
+  collect:
+    needs: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 340
+    env:
+      GH_TOKEN: ${{ github.token }}
+      APIS: ${{ github.event.inputs.apis || 'tier:core' }}
+      MAX_PAGES: ${{ github.event.inputs.max_pages || '0' }}
+      ROWS: ${{ github.event.inputs.rows || '500' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: 이전 DB 내려받기
+        run: |
+          mkdir -p data
+          if gh release download data-latest -p mfds.sqlite.gz -D data --repo "$GITHUB_REPOSITORY"; then
+            gunzip -f data/mfds.sqlite.gz
+            echo "이전 DB를 이어서 사용합니다."
+          else
+            echo "이전 DB가 없습니다 (최초 실행)."
+          fi
+
+      - name: 수집
+        env:
+          MFDS_SERVICE_KEY: ${{ secrets.MFDS_SERVICE_KEY }}
+          TRIGGER: ${{ github.event_name }}
+        run: >
+          python -m collector.run
+          --db data/mfds.sqlite
+          --apis "$APIS"
+          --rows "$ROWS"
+          --max-pages "$MAX_PAGES"
+          --trigger "$TRIGGER"
+          --summary data/last_run.json
+
+      - name: DB 게시 (Release data-latest)
+        if: env.MAX_PAGES == '0'
+        run: |
+          gzip -kf data/mfds.sqlite
+          if ! gh release view data-latest --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release create data-latest --repo "$GITHUB_REPOSITORY" --latest=false \
+              --title "수집 데이터 (최신)" \
+              --notes "GitHub Actions가 갱신하는 SQLite DB(mfds.sqlite.gz)와 최근 실행 요약(last_run.json)입니다."
+          fi
+          gh release upload data-latest data/mfds.sqlite.gz data/last_run.json --clobber --repo "$GITHUB_REPOSITORY"

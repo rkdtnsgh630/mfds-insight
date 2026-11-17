@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+.env
+data/*.sqlite
+data/*.sqlite-*
+data/*.gz
+data/last_run.json
