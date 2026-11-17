@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       apis:
-        description: "수집 대상 (tier:core | tier:heavy | tier:core+heavy | all | id1,id2)"
+        description: "수집 대상 (tier:core | tier:hold | tier:core+hold | all | id1,id2)"
         required: false
         default: "tier:core"
       max_pages:

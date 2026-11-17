@@ -16,9 +16,9 @@
 
 1. ~~Secret 등록~~ 완료 (2026-11-18)
 2. ~~시험 실행~~ 완료: 단위 시험 통과, 35/36 응답 (희귀의약품 403)
-3. 첫 정식 실행: `tier:core` 전체 → 기준선 DB를 Release에 게시
+3. 첫 정식 실행: `tier:core` (확정 화면용 11개) → 기준선 DB를 Release에 게시
 4. 실행 결과로 키 설계 점검: `key_collisions`·`duplicates`가 많은 API는 `apis.py`의 key 수정
-5. heavy 등급 별도 실행 (DUR 병용금기 등), DB 크기 확인
+5. 보류(hold) API는 특허·임상·제네릭 메뉴 채택 시 수집
 6. 표준화 계층(company·product 등)과 사이트용 데이터 내보내기 설계
 
 ## Phase 2 진입 준비 (수집 기반) — 이전 메모

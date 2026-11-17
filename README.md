@@ -38,11 +38,11 @@ tests/       단위 시험 (네트워크 없이 실행)
 
 | 입력 | 의미 | 기본값 |
 |---|---|---|
-| apis | `tier:core`, `tier:heavy`, `tier:core+heavy`, `all`, 또는 `gmp,dmf`처럼 API id 나열 | `tier:core` |
+| apis | `tier:core`, `tier:hold`, `tier:core+hold`, `all`, 또는 `gmp,dmf`처럼 API id 나열 | `tier:core` |
 | max_pages | API당 최대 페이지. 0이 아니면 시험 실행으로 보고 DB를 게시하지 않음 | `0` |
 | rows | 페이지당 건수 | `500` |
 
-`heavy` 등급(DUR 병용금기 79만 건, 제품허가 상세, 주성분, 특허정보, 재심사)은 건수가 많아 정기 실행에서 빠져 있다.
+정기 실행은 `core` 등급 11개만 수집한다 (확정된 사이트 화면 7개가 쓰는 데이터). `hold`(보류 12개)는 메뉴 채택 시 수동 실행하고, `excluded`(DUR·의약외품·화장품·주성분 상세 등 13개)는 등록만 유지한다. 근거: docs/DASHBOARD_DESIGN.md
 
 ## 문서
 

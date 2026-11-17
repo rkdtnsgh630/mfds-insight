@@ -81,7 +81,7 @@ def render_markdown(run_id, results, calls):
 def main(argv=None):
     p = argparse.ArgumentParser(description="MFDS 공공데이터 수집기")
     p.add_argument("--db", default="data/mfds.sqlite")
-    p.add_argument("--apis", default="tier:core", help="tier:core | tier:core+heavy | all | id1,id2")
+    p.add_argument("--apis", default="tier:core", help="tier:core | tier:core+hold | all | id1,id2")
     p.add_argument("--rows", type=int, default=500, help="페이지당 건수")
     p.add_argument("--max-pages", type=int, default=0, help="API당 최대 페이지 (0=전체, 시험용)")
     p.add_argument("--sleep", type=float, default=0.1, help="호출 간 대기(초)")

@@ -1,0 +1,396 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>MFDS INSIGHT 화면 시안</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@500;600&family=Noto+Sans+KR:wght@400;500;700&display=swap">
+<style>
+/* 레이아웃: 좌측 메뉴 + 상단 통합검색 바 + 본문(요약 카드 → 차트 → 표). 밝은 화면 기본, PC 우선, 900px 이하에서 메뉴가 상단 가로 스크롤로 바뀜 */
+:root{
+  --bg:#F5F7F8; --panel:#FFFFFF; --line:#DDE3E6; --line2:#C9D2D6;
+  --fg:#16232A; --fg2:#4E5E66; --fg3:#7C8B92;
+  --accent:#0B6E8A; --accent-bg:#E3F1F5; --accent2:#5FA8BD;
+  --ok:#2E7D4F; --ok-bg:#E4F3E9; --warn:#9A6200; --warn-bg:#FBF0DA; --bad:#B23A3A; --bad-bg:#FBE6E6; --mute-bg:#EEF1F2;
+  --sample:#8A5A00; --sample-bg:#FFF4D6;
+  --f-head:"IBM Plex Sans KR","Noto Sans KR",system-ui,sans-serif;
+  --f-body:"Noto Sans KR",system-ui,-apple-system,"Malgun Gothic",sans-serif;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0F171B; --panel:#162227; --line:#26353B; --line2:#33454C;
+  --fg:#E4ECEF; --fg2:#A8B7BD; --fg3:#7D8E95;
+  --accent:#5BB8D2; --accent-bg:#183641; --accent2:#2F7F96;
+  --ok:#7CC99A; --ok-bg:#1B3326; --warn:#E6B65C; --warn-bg:#3A2D12; --bad:#EE8A8A; --bad-bg:#3D1E1E; --mute-bg:#1E2B30;
+  --sample:#F1C56A; --sample-bg:#3A2E10; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0F171B; --panel:#162227; --line:#26353B; --line2:#33454C;
+  --fg:#E4ECEF; --fg2:#A8B7BD; --fg3:#7D8E95;
+  --accent:#5BB8D2; --accent-bg:#183641; --accent2:#2F7F96;
+  --ok:#7CC99A; --ok-bg:#1B3326; --warn:#E6B65C; --warn-bg:#3A2D12; --bad:#EE8A8A; --bad-bg:#3D1E1E; --mute-bg:#1E2B30;
+  --sample:#F1C56A; --sample-bg:#3A2E10; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font-family:var(--f-body);font-size:14px;line-height:1.55}
+.app{display:grid;grid-template-columns:220px minmax(0,1fr);min-height:100vh}
+aside{background:var(--panel);border-right:1px solid var(--line);padding-block:18px;padding-left:max(14px,env(safe-area-inset-left,0px));padding-right:14px;position:sticky;top:0;height:100vh}
+.brand{font-family:var(--f-head);font-weight:600;font-size:17px;letter-spacing:.02em;padding:0 8px 16px;display:flex;align-items:center;gap:8px}
+.brand i{width:22px;height:22px;border-radius:6px;background:var(--accent);display:inline-block;position:relative}
+.brand i::after{content:"";position:absolute;inset:6px 9px;background:var(--panel);border-radius:2px}
+nav a{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:7px;color:var(--fg2);text-decoration:none;font-size:14px}
+nav a:hover{background:var(--mute-bg);color:var(--fg)}
+nav a.on{background:var(--accent-bg);color:var(--accent);font-weight:500}
+nav .grp{font-size:11px;color:var(--fg3);letter-spacing:.06em;padding:14px 10px 4px}
+.side-foot{position:absolute;bottom:16px;left:14px;right:14px;font-size:11.5px;color:var(--fg3);line-height:1.5}
+main{min-width:0;padding-block:0 40px;padding-right:max(16px,env(safe-area-inset-right,0px))}
+.topbar{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);display:flex;gap:10px;align-items:center;padding:14px 0 12px 24px;border-bottom:1px solid var(--line)}
+.search{flex:1;display:flex;align-items:center;gap:8px;background:var(--panel);border:1px solid var(--line2);border-radius:8px;padding:0 12px;height:40px;max-width:640px}
+.search input{border:0;outline:0;background:transparent;color:var(--fg);flex:1;font:inherit;height:38px}
+.search:focus-within{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-bg)}
+.chip-scope{font-size:12px;color:var(--fg3);white-space:nowrap}
+.btn{font:inherit;font-size:13px;border:1px solid var(--line2);background:var(--panel);color:var(--fg);border-radius:7px;height:34px;padding:0 12px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+.btn:hover{border-color:var(--accent);color:var(--accent)}
+.btn:focus-visible,nav a:focus-visible,th button:focus-visible,.link:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.content{padding:20px 0 0 24px;display:flex;flex-direction:column;gap:18px}
+.pagehead{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap}
+h1{font-family:var(--f-head);font-weight:600;font-size:22px;margin:0;text-wrap:balance}
+.crumb{font-size:12.5px;color:var(--fg3);margin-bottom:2px}
+.meta{font-size:12px;color:var(--fg3);display:flex;gap:14px;flex-wrap:wrap}
+.meta b{color:var(--fg2);font-weight:500}
+.notice{background:var(--sample-bg);color:var(--sample);border-radius:8px;padding:9px 14px;font-size:13px}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px}
+.kpi{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 16px;display:flex;flex-direction:column;gap:2px}
+.kpi .l{font-size:12.5px;color:var(--fg2);display:flex;justify-content:space-between;gap:6px;align-items:center}
+.kpi .v{font-family:var(--f-head);font-size:26px;font-weight:600;font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+.kpi .s{font-size:12px;color:var(--fg3)}
+.d-up{color:var(--bad)} .d-dn{color:var(--ok)}
+.tag{font-size:11px;padding:1px 7px;border-radius:5px;white-space:nowrap;font-weight:500}
+.t-real{background:var(--ok-bg);color:var(--ok)} .t-sample{background:var(--sample-bg);color:var(--sample)}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,380px),1fr));gap:14px}
+.grid3{display:grid;grid-template-columns:2fr 1fr;gap:14px}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px 18px;min-width:0}
+.ph{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:10px}
+.ph h2{font-family:var(--f-head);font-size:15px;font-weight:600;margin:0}
+.ph .src{font-size:11.5px;color:var(--fg3);margin-top:2px}
+svg text{fill:var(--fg3);font-size:11px;font-family:var(--f-body)}
+.legend{display:flex;gap:14px;font-size:12px;color:var(--fg2);margin-top:4px}
+.legend span::before{content:"";display:inline-block;width:10px;height:3px;border-radius:2px;background:var(--c);margin-right:6px;vertical-align:middle}
+.feed{display:flex;flex-direction:column}
+.feed .r{display:grid;grid-template-columns:76px minmax(0,1fr) auto;gap:10px;align-items:center;padding:9px 0;border-top:1px solid var(--line);font-size:13px}
+.feed .r:first-child{border-top:0}
+.pill{font-size:11.5px;padding:2px 8px;border-radius:5px;text-align:center;font-weight:500}
+.p-new{background:var(--accent-bg);color:var(--accent)} .p-bad{background:var(--bad-bg);color:var(--bad)} .p-warn{background:var(--warn-bg);color:var(--warn)} .p-mute{background:var(--mute-bg);color:var(--fg2)} .p-ok{background:var(--ok-bg);color:var(--ok)}
+.when{font-size:12px;color:var(--fg3);font-variant-numeric:tabular-nums}
+.filters{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
+.filters input,.filters select{font:inherit;font-size:13px;height:34px;border:1px solid var(--line2);border-radius:7px;background:var(--panel);color:var(--fg);padding:0 10px}
+.filters input{min-width:0;flex:1;max-width:280px}
+.tbl-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:8px}
+table{border-collapse:collapse;width:100%;font-size:13px;font-variant-numeric:tabular-nums}
+th,td{padding:9px 12px;text-align:left;border-bottom:1px solid var(--line);white-space:nowrap}
+th{background:var(--mute-bg);font-weight:500;color:var(--fg2);font-size:12.5px}
+th button{all:unset;cursor:pointer;display:inline-flex;gap:4px;align-items:center}
+th button:hover{color:var(--accent)}
+td.n,th.n{text-align:right}
+tr:last-child td{border-bottom:0}
+tbody tr:hover{background:var(--mute-bg)}
+.link{color:var(--accent);text-decoration:none;cursor:pointer;font-weight:500}
+.link:hover{text-decoration:underline}
+.pager{display:flex;justify-content:space-between;align-items:center;font-size:12.5px;color:var(--fg3);margin-top:10px}
+.dl{display:flex;gap:8px;align-items:center}
+.idgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:0;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.idgrid div{padding:10px 14px;border-bottom:1px solid var(--line);border-right:1px solid var(--line);min-width:0}
+.idgrid dt{font-size:11.5px;color:var(--fg3)} .idgrid dd{margin:2px 0 0;font-size:13.5px;overflow-wrap:anywhere}
+.link-state{font-size:11.5px;color:var(--fg3);display:flex;gap:6px;align-items:center}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--ok);display:inline-block}
+.dot.w{background:var(--warn)}
+.timeline{display:flex;flex-direction:column;gap:0}
+.timeline .r{display:grid;grid-template-columns:86px 72px minmax(0,1fr);gap:10px;padding:9px 0;border-top:1px solid var(--line);font-size:13px;align-items:center}
+.timeline .r:first-child{border-top:0}
+.toast{position:fixed;right:max(20px,env(safe-area-inset-right,0px));bottom:calc(20px + env(safe-area-inset-bottom,0px));background:var(--fg);color:var(--bg);padding:10px 14px;border-radius:8px;font-size:13px}
+@media (max-width:900px){
+  .app{grid-template-columns:minmax(0,1fr)}
+  aside{position:static;height:auto;border-right:0;border-bottom:1px solid var(--line);padding-block:10px;padding-right:max(16px,env(safe-area-inset-right,0px));padding-left:max(16px,env(safe-area-inset-left,0px))}
+  .brand{padding-bottom:8px}
+  nav{display:flex;overflow-x:auto;gap:4px}
+  nav .grp,.side-foot{display:none}
+  nav a{white-space:nowrap}
+  main{padding-left:max(16px,env(safe-area-inset-left,0px))}
+  .topbar,.content{padding-left:0}
+  .grid3{grid-template-columns:minmax(0,1fr)}
+  .chip-scope{display:none}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body style="margin:0">
+
+<div class="app">
+<aside>
+  <div class="brand"><i aria-hidden="true"></i>MFDS INSIGHT</div>
+  <nav id="nav">
+    <a href="#dashboard" data-v="dashboard">종합 대시보드</a>
+    <div class="grp">탐색</div>
+    <a href="#companies" data-v="companies">제약회사</a>
+    <a href="#drugs" data-v="drugs">의약품</a>
+    <div class="grp">분석</div>
+    <a href="#stats" data-v="stats">산업 통계</a>
+    <a href="#regulation" data-v="regulation">규제·품질</a>
+    <a href="#supply" data-v="supply">공급·안전</a>
+    <a href="#changes" data-v="changes">변경 모니터링</a>
+  </nav>
+  <div class="side-foot">출처: 식품의약품안전처 공공데이터 (data.go.kr)<br>매일 03:00 갱신 예정</div>
+</aside>
+<main>
+  <div class="topbar">
+    <label class="search" for="q"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" style="color:var(--fg3)"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+      <input id="q" type="search" placeholder="품목명, 업체명, 성분명, 사업자번호, 품목기준코드" autocomplete="off"></label>
+    <span class="chip-scope">통합검색 · 업체 2,871 · 품목 42,724</span>
+  </div>
+  <div class="content" id="view"></div>
+</main>
+</div>
+<div class="toast" id="toast" hidden></div>
+
+<script>
+(function(){
+const REAL={permits:42724,companies:2871,recalls:1001,suspend:1340,admin:541,shortage:778,gmp:569,overseas:13644,letters:322,prod:176133};
+const ASOF="2026-11-18";
+let seed=7;const rnd=()=>{seed=(seed*16807)%2147483647;return (seed-1)/2147483646};
+const pick=a=>a[Math.floor(rnd()*a.length)];
+const fmt=n=>Math.round(n).toLocaleString("ko-KR");
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const regions=["서울","경기","충북","인천","전북","충남","경남","대전"];
+const types=["완제의약품 제조","원료의약품 제조","수입","완제·원료 제조"];
+const forms=["정","캡슐","주사","시럽","연고","과립","필름코팅정"];
+const ingr=["아세트아미노펜","암로디핀베실산염","로수바스타틴칼슘","메트포르민염산염","세파클러","오메프라졸","텔미사르탄","에제티미브","레보세티리진염산염","클로피도그렐황산염"];
+const companies=Array.from({length:48},(_,i)=>{
+  const p=Math.round(30+rnd()*480);
+  return {id:"C"+(i+1),name:"샘플제약 "+String.fromCharCode(65+(i%26))+(i>=26?"2":""),biz:(1000000000+Math.floor(rnd()*8999999999)).toString().replace(/(\d{3})(\d{2})(\d{5})/,"$1-$2-$3"),
+    region:pick(regions),type:pick(types),permits:p,active:Math.round(p*(0.75+rnd()*0.2)),prod:Math.round(200+rnd()*9000),gmp:Math.round(rnd()*6),recall:Math.round(rnd()*rnd()*8),admin:Math.round(rnd()*rnd()*4),suspend:Math.round(rnd()*rnd()*6)};
+});
+const drugs=Array.from({length:60},(_,i)=>{
+  const c=pick(companies),g=pick(ingr),f=pick(forms),y=2005+Math.floor(rnd()*21);
+  return {id:"D"+(i+1),seq:String(200500000+Math.floor(rnd()*2099999)),name:g.split(/(?=염)|칼슘|황산염/)[0]+" "+f+" "+pick(["5mg","10mg","20mg","100mg","500mg","250mg"]),
+    ingr:g,co:c,kind:rnd()<0.7?"전문":"일반",atc:pick(["C10AA07","A10BA02","C08CA01","N02BE01","J01DC04","A02BC01","C09CA07"]),date:y+"-"+String(1+Math.floor(rnd()*12)).padStart(2,"0")+"-"+String(1+Math.floor(rnd()*28)).padStart(2,"0"),
+    status:rnd()<0.88?"정상":"취하",edi:String(640000000+Math.floor(rnd()*9999999))};
+});
+const years=[2016,2017,2018,2019,2020,2021,2022,2023,2024,2025];
+const newPermits=years.map(()=>Math.round(1700+rnd()*1300));
+const cancels=years.map(()=>Math.round(900+rnd()*1100));
+const prodYears=[2018,2019,2020,2021,2022,2023,2024];
+const prodAmt=prodYears.map((_,i)=>Math.round(22.5+i*1.6+rnd()*1.5)*10)/10;
+const importAmt=prodYears.map((_,i)=>Math.round(7+i*0.7+rnd())*10)/10;
+
+function S(on){return on?'<span class="tag t-sample">샘플</span>':'<span class="tag t-real">실제</span>'}
+function meta(src){return `<div class="meta"><span>데이터 기준일 <b>${ASOF}</b></span><span>출처 <b>${src}</b></span></div>`}
+function toast(t){const el=document.getElementById("toast");el.textContent=t;el.hidden=false;clearTimeout(toast.t);toast.t=setTimeout(()=>el.hidden=true,2600)}
+
+function lineChart(xs,series,{h=210,unit=""}={}){
+  const W=640,H=h,L=46,R=14,T=12,B=26;const all=series.flatMap(s=>s.v);const mx=Math.max(...all),mn=0;
+  const step=niceStep(mx/4);const top=Math.ceil(mx/step)*step;
+  const x=i=>L+(W-L-R)*i/(xs.length-1),y=v=>T+(H-T-B)*(1-(v-mn)/(top-mn));
+  let g="";for(let v=0;v<=top+1e-9;v+=step){g+=`<line x1="${L}" x2="${W-R}" y1="${y(v)}" y2="${y(v)}" stroke="var(--line)" stroke-width="1"/><text x="${L-8}" y="${y(v)+4}" text-anchor="end">${fmtTick(v)}${unit}</text>`}
+  xs.forEach((t,i)=>{if(xs.length<=10||i%2===0)g+=`<text x="${x(i)}" y="${H-6}" text-anchor="middle">${t}</text>`});
+  series.forEach(s=>{const pts=s.v.map((v,i)=>`${x(i)},${y(v)}`).join(" ");
+    if(s.area)g+=`<polygon points="${x(0)},${y(0)} ${pts} ${x(s.v.length-1)},${y(0)}" fill="${s.c}" opacity=".12"/>`;
+    g+=`<polyline points="${pts}" fill="none" stroke="${s.c}" stroke-width="2.2" stroke-linejoin="round"/>`;
+    const li=s.v.length-1;g+=`<circle cx="${x(li)}" cy="${y(s.v[li])}" r="4" fill="${s.c}" stroke="var(--panel)" stroke-width="2"/>`});
+  return `<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="시계열 그래프">${g}</svg>`;
+}
+function barChart(items,{h=220,c="var(--accent)",unit=""}={}){
+  const W=640,L=120,R=56,rowH=Math.min(26,(h-10)/items.length);const H=items.length*rowH+10;const mx=Math.max(...items.map(d=>d.v));
+  let g="";items.forEach((d,i)=>{const y=6+i*rowH,w=(W-L-R)*d.v/mx;
+    g+=`<text x="${L-8}" y="${y+rowH/2+4}" text-anchor="end" style="fill:var(--fg2)">${esc(d.k)}</text><rect x="${L}" y="${y+4}" width="${Math.max(2,w)}" height="${rowH-8}" rx="3" fill="${c}"/><text x="${L+w+6}" y="${y+rowH/2+4}">${fmt(d.v)}${unit}</text>`});
+  return `<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="막대그래프">${g}</svg>`;
+}
+function colChart(xs,vals,{h=200,c="var(--accent)"}={}){
+  const W=640,H=h,L=46,R=10,T=10,B=26;const mx=Math.max(...vals);const step=niceStep(mx/4);const top=Math.ceil(mx/step)*step;
+  const bw=(W-L-R)/xs.length;const y=v=>T+(H-T-B)*(1-v/top);let g="";
+  for(let v=0;v<=top+1e-9;v+=step)g+=`<line x1="${L}" x2="${W-R}" y1="${y(v)}" y2="${y(v)}" stroke="var(--line)"/><text x="${L-8}" y="${y(v)+4}" text-anchor="end">${fmtTick(v)}</text>`;
+  vals.forEach((v,i)=>{const x=L+i*bw+bw*0.18;g+=`<rect x="${x}" y="${y(v)}" width="${bw*0.64}" height="${y(0)-y(v)}" rx="3" fill="${c}" opacity="${i===vals.length-1?1:.72}"/><text x="${x+bw*0.32}" y="${H-6}" text-anchor="middle">${xs[i]}</text>`});
+  return `<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="막대그래프">${g}</svg>`;
+}
+function niceStep(r){const p=Math.pow(10,Math.floor(Math.log10(r)));const n=r/p;return (n<=1?1:n<=2?2:n<=5?5:10)*p}
+function fmtTick(v){return v>=1000?fmt(v):(Math.round(v*10)/10).toString()}
+
+function table(cfg){
+  const st={q:"",f:"",sort:cfg.sort,dir:cfg.dir||-1,page:0};const per=cfg.per||10;const id=cfg.id;
+  function rows(){let r=cfg.rows.filter(x=>(!st.q||cfg.text(x).toLowerCase().includes(st.q.toLowerCase()))&&(!st.f||cfg.filter.get(x)===st.f));
+    const col=cfg.cols.find(c=>c.k===st.sort);r=r.slice().sort((a,b)=>{const va=col.v(a),vb=col.v(b);return (va>vb?1:va<vb?-1:0)*st.dir});return r}
+  function draw(){const r=rows();const pages=Math.max(1,Math.ceil(r.length/per));st.page=Math.min(st.page,pages-1);const sl=r.slice(st.page*per,st.page*per+per);
+    document.getElementById(id+"-body").innerHTML=sl.map(x=>"<tr>"+cfg.cols.map(c=>`<td class="${c.n?"n":""}">${c.h?c.h(x):esc(c.v(x))}</td>`).join("")+"</tr>").join("")||`<tr><td colspan="${cfg.cols.length}" style="color:var(--fg3);padding:22px 12px">조건에 맞는 결과가 없습니다. 검색어나 필터를 바꿔 보세요.</td></tr>`;
+    document.getElementById(id+"-info").textContent=`${fmt(r.length)}건 중 ${r.length?st.page*per+1:0}–${st.page*per+sl.length}`;
+    document.querySelectorAll(`#${id} th button`).forEach(b=>{const k=b.dataset.k;b.querySelector("i").textContent=k===st.sort?(st.dir>0?"▲":"▼"):"";b.closest("th").setAttribute("aria-sort",k===st.sort?(st.dir>0?"ascending":"descending"):"none")});
+    document.getElementById(id+"-prev").disabled=st.page===0;document.getElementById(id+"-next").disabled=st.page>=pages-1;}
+  const html=`<div id="${id}"><div class="filters"><input id="${id}-q" type="search" placeholder="${cfg.ph}">${cfg.filter?`<select id="${id}-f" aria-label="${cfg.filter.label}"><option value="">${cfg.filter.label} 전체</option>${cfg.filter.opts.map(o=>`<option>${esc(o)}</option>`).join("")}</select>`:""}
+    <span style="flex:1"></span><button class="btn" id="${id}-dl" type="button">CSV 다운로드</button></div>
+    <div class="tbl-wrap"><table><thead><tr>${cfg.cols.map(c=>`<th class="${c.n?"n":""}" aria-sort="none"><button type="button" data-k="${c.k}">${c.t}<i aria-hidden="true"></i></button></th>`).join("")}</tr></thead><tbody id="${id}-body"></tbody></table></div>
+    <div class="pager"><span id="${id}-info"></span><span class="dl"><button class="btn" id="${id}-prev" type="button">이전</button><button class="btn" id="${id}-next" type="button">다음</button></span></div></div>`;
+  function bind(){const q=document.getElementById(id+"-q");q.addEventListener("input",()=>{st.q=q.value;st.page=0;draw()});
+    if(cfg.filter){const f=document.getElementById(id+"-f");f.addEventListener("change",()=>{st.f=f.value;st.page=0;draw()})}
+    document.querySelectorAll(`#${id} th button`).forEach(b=>b.addEventListener("click",()=>{const k=b.dataset.k;if(st.sort===k)st.dir*=-1;else{st.sort=k;st.dir=-1}draw()}));
+    document.getElementById(id+"-prev").addEventListener("click",()=>{st.page--;draw()});document.getElementById(id+"-next").addEventListener("click",()=>{st.page++;draw()});
+    document.getElementById(id+"-dl").addEventListener("click",()=>{const r=rows();const csv=[cfg.cols.map(c=>c.t).join(",")].concat(r.map(x=>cfg.cols.map(c=>'"'+String(c.v(x)).replace(/"/g,'""')+'"').join(","))).join("\n");
+      if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(csv).then(()=>toast(`시안에서는 파일 저장이 막혀 있어 ${fmt(r.length)}행을 CSV로 복사했습니다. 실제 사이트에서는 파일로 내려받습니다.`),()=>toast("실제 사이트에서는 현재 필터 결과를 CSV 파일로 내려받습니다."))}else toast("실제 사이트에서는 현재 필터 결과를 CSV 파일로 내려받습니다.")});
+    draw()}
+  return {html,bind};
+}
+
+const V={};
+V.dashboard=()=>{
+  const recent=[["신규 허가","p-new","샘플제약 C · 로수바스타틴 필름코팅정 10mg","11-17"],["회수","p-bad","샘플제약 H · 세파클러 캡슐 250mg — 품질 부적합(용출)","11-17"],["공급중단","p-warn","샘플제약 K · 오메프라졸 캡슐 20mg — 원료 수급","11-16"],["행정처분","p-mute","샘플제약 B — 제조업무정지 1개월","11-15"],["GMP","p-ok","샘플제약 E · 충북 공장 적합판정","11-14"],["허가 취하","p-mute","샘플제약 R · 아세트아미노펜 정 500mg","11-14"]];
+  const top=companies.slice().sort((a,b)=>b.prod-a.prod).slice(0,8).map(c=>({k:c.name,v:c.prod}));
+  return `<div class="pagehead"><div><div class="crumb">MFDS INSIGHT</div><h1>종합 대시보드</h1></div>${meta("식약처 의약품 제품허가·업체허가·회수·공급중단·행정처분 API")}</div>
+  <div class="notice">시안입니다. '실제' 표시 숫자는 2026-11-18 시험 수집에서 API가 돌려준 전체 건수이고, '샘플' 표시 차트·목록은 화면 모양을 보이기 위한 가상 값입니다.</div>
+  <div class="kpis">
+    <div class="kpi"><div class="l">허가 품목 ${S(0)}</div><div class="v">${fmt(REAL.permits)}</div><div class="s">취하 포함 누적</div></div>
+    <div class="kpi"><div class="l">업체 ${S(0)}</div><div class="v">${fmt(REAL.companies)}</div><div class="s">업체허가 목록</div></div>
+    <div class="kpi"><div class="l">회수·판매중지 ${S(0)}</div><div class="v">${fmt(REAL.recalls)}</div><div class="s">공개 누적</div></div>
+    <div class="kpi"><div class="l">공급중단·부족 보고 ${S(0)}</div><div class="v">${fmt(REAL.suspend+REAL.shortage)}</div><div class="s">중단 ${fmt(REAL.suspend)} · 부족 ${fmt(REAL.shortage)}</div></div>
+    <div class="kpi"><div class="l">행정처분 ${S(0)}</div><div class="v">${fmt(REAL.admin)}</div><div class="s">공개 중</div></div>
+  </div>
+  <div class="kpis">
+    <div class="kpi"><div class="l">최근 30일 신규 허가 ${S(1)}</div><div class="v">186</div><div class="s"><span class="d-dn">▲ 12</span> 직전 30일 대비</div></div>
+    <div class="kpi"><div class="l">최근 30일 회수 ${S(1)}</div><div class="v">9</div><div class="s"><span class="d-up">▲ 3</span> 직전 30일 대비</div></div>
+    <div class="kpi"><div class="l">최근 30일 공급중단 ${S(1)}</div><div class="v">14</div><div class="s"><span class="d-dn">▼ 2</span> 직전 30일 대비</div></div>
+    <div class="kpi"><div class="l">최근 30일 행정처분 ${S(1)}</div><div class="v">6</div><div class="s">변경 이력 쌓인 뒤 계산</div></div>
+  </div>
+  <div class="grid2">
+    <div class="panel"><div class="ph"><div><h2>연도별 신규 허가와 취하</h2><div class="src">제품허가 목록 · 허가일자·취하일자 기준</div></div>${S(1)}</div>
+      ${lineChart(years,[{v:newPermits,c:"var(--accent)",area:true},{v:cancels,c:"var(--warn)"}])}
+      <div class="legend"><span style="--c:var(--accent)">신규 허가</span><span style="--c:var(--warn)">취하</span></div></div>
+    <div class="panel"><div class="ph"><div><h2>생산실적 상위 업체 (2024)</h2><div class="src">생산·수입실적 · 억 원</div></div>${S(1)}</div>${barChart(top,{unit:"억"})}</div>
+  </div>
+  <div class="grid3">
+    <div class="panel"><div class="ph"><div><h2>최근 변경</h2><div class="src">매일 수집 결과의 추가·변경·삭제</div></div>${S(1)}</div>
+      <div class="feed">${recent.map(r=>`<div class="r"><span class="pill ${r[1]}">${r[0]}</span><span>${esc(r[2])}</span><span class="when">${r[3]}</span></div>`).join("")}</div></div>
+    <div class="panel"><div class="ph"><div><h2>회수 등급 분포</h2><div class="src">회수·판매중지 · 최근 1년</div></div>${S(1)}</div>
+      ${barChart([{k:"1등급",v:4},{k:"2등급",v:31},{k:"3등급",v:58}],{h:110,c:"var(--bad)"})}
+      <div class="ph" style="margin-top:14px"><div><h2>공급중단 사유</h2><div class="src">공급중단 보고 · 최근 1년</div></div>${S(1)}</div>
+      ${barChart([{k:"원료 수급",v:42},{k:"채산성",v:27},{k:"생산 중단",v:19},{k:"기타",v:12}],{h:130,c:"var(--warn)"})}</div>
+  </div>`;
+};
+V.companies=()=>{const t=table({id:"tc",rows:companies,ph:"업체명 또는 사업자번호",sort:"permits",text:c=>c.name+c.biz,filter:{label:"지역",opts:regions,get:c=>c.region},
+  cols:[{k:"name",t:"업체명",v:c=>c.name,h:c=>`<a class="link" href="#company-${c.id}">${esc(c.name)}</a>`},{k:"biz",t:"사업자번호",v:c=>c.biz},{k:"region",t:"지역",v:c=>c.region},{k:"type",t:"업종",v:c=>c.type},
+    {k:"permits",t:"허가 품목",n:1,v:c=>c.permits,h:c=>fmt(c.permits)},{k:"prod",t:"생산실적(억)",n:1,v:c=>c.prod,h:c=>fmt(c.prod)},{k:"gmp",t:"GMP",n:1,v:c=>c.gmp},{k:"recall",t:"회수",n:1,v:c=>c.recall},{k:"admin",t:"행정처분",n:1,v:c=>c.admin}]});
+  V._bind=t.bind;
+  return `<div class="pagehead"><div><div class="crumb">탐색</div><h1>제약회사</h1></div>${meta("업체허가 목록 + 사업자번호로 연결한 제품허가·생산실적·GMP·회수·행정처분")}</div>
+  <div class="notice">표의 업체와 숫자는 모두 샘플입니다. 실제 업체 수는 ${fmt(REAL.companies)}곳입니다.</div>
+  <div class="panel">${t.html}</div>`};
+V.company=(id)=>{const c=companies.find(x=>x.id===id)||companies[0];const mine=drugs.filter(d=>d.co===c);
+  const py=[2020,2021,2022,2023,2024];const pv=py.map((_,i)=>Math.round(c.prod*(0.72+i*0.07+rnd()*0.05)));
+  const t=table({id:"tcd",rows:mine.length?mine:drugs.slice(0,6),ph:"품목명 또는 성분",sort:"date",text:d=>d.name+d.ingr,filter:{label:"상태",opts:["정상","취하"],get:d=>d.status},
+    cols:[{k:"name",t:"품목명",v:d=>d.name,h:d=>`<a class="link" href="#drug-${d.id}">${esc(d.name)}</a>`},{k:"ingr",t:"주성분",v:d=>d.ingr},{k:"kind",t:"전문/일반",v:d=>d.kind},{k:"date",t:"허가일",v:d=>d.date},{k:"status",t:"상태",v:d=>d.status,h:d=>`<span class="pill ${d.status==="정상"?"p-ok":"p-mute"}">${d.status}</span>`}]});
+  V._bind=t.bind;
+  return `<div class="pagehead"><div><div class="crumb"><a class="link" href="#companies">제약회사</a> / 상세</div><h1>${esc(c.name)} <span class="tag t-sample" style="vertical-align:middle">샘플</span></h1></div>
+    <div style="display:flex;gap:8px"><button class="btn" type="button" onclick="this.textContent=this.textContent.includes('추가')?'관심 업체 해제':'관심 업체 추가'">관심 업체 추가</button></div></div>
+  ${meta("업체허가·제품허가·생산실적·GMP·회수·공급중단·행정처분 (사업자번호 연결)")}
+  <dl class="idgrid" style="margin:0"><div><dt>사업자번호</dt><dd>${c.biz}</dd></div><div><dt>업종</dt><dd>${c.type}</dd></div><div><dt>소재지</dt><dd>${c.region}</dd></div>
+    <div><dt>연결 상태</dt><dd class="link-state"><span class="dot"></span>공식 식별자 일치 (사업자번호)</dd></div></dl>
+  <div class="kpis">
+    <div class="kpi"><div class="l">허가 품목</div><div class="v">${fmt(c.permits)}</div><div class="s">유효 ${fmt(c.active)}</div></div>
+    <div class="kpi"><div class="l">생산실적 2024</div><div class="v">${fmt(c.prod)}<span style="font-size:14px;color:var(--fg3)"> 억</span></div><div class="s">전년 대비 ▲ 6.1%</div></div>
+    <div class="kpi"><div class="l">GMP 적합판정</div><div class="v">${c.gmp}</div><div class="s">유효기한 내</div></div>
+    <div class="kpi"><div class="l">회수 · 공급중단 · 처분</div><div class="v">${c.recall} · ${c.suspend} · ${c.admin}</div><div class="s">공개 누적</div></div>
+  </div>
+  <div class="grid2">
+    <div class="panel"><div class="ph"><div><h2>연도별 생산실적</h2><div class="src">생산·수입실적 · 억 원</div></div>${S(1)}</div>${colChart(py,pv)}</div>
+    <div class="panel"><div class="ph"><div><h2>이력</h2><div class="src">회수·공급중단·행정처분·GMP 시간순</div></div>${S(1)}</div>
+      <div class="timeline">
+        <div class="r"><span class="when">2025-08-21</span><span class="pill p-bad">회수</span><span>세파클러 캡슐 250mg — 2등급, 용출 부적합</span></div>
+        <div class="r"><span class="when">2025-03-10</span><span class="pill p-ok">GMP</span><span>충북 공장 · 정제/캡슐 적합판정 (유효 2028-03)</span></div>
+        <div class="r"><span class="when">2024-11-04</span><span class="pill p-warn">공급중단</span><span>오메프라졸 캡슐 20mg — 원료 수급</span></div>
+        <div class="r"><span class="when">2024-06-17</span><span class="pill p-mute">행정처분</span><span>표시기재 위반 — 해당 품목 판매업무정지 1개월</span></div>
+        <div class="r"><span class="when">2023-12-01</span><span class="link-state"><span class="dot w"></span>검증대기</span><span>해외제조소 1건 — 업체명 문자열로만 연결됨</span></div>
+      </div></div>
+  </div>
+  <div class="panel"><div class="ph"><div><h2>허가 품목</h2><div class="src">제품허가 목록 · 사업자번호 일치</div></div>${S(1)}</div>${t.html}</div>`};
+V.drugs=()=>{const t=table({id:"td",rows:drugs,ph:"품목명, 성분, 업체, 품목기준코드",sort:"date",text:d=>d.name+d.ingr+d.co.name+d.seq,filter:{label:"전문/일반",opts:["전문","일반"],get:d=>d.kind},
+  cols:[{k:"name",t:"품목명",v:d=>d.name,h:d=>`<a class="link" href="#drug-${d.id}">${esc(d.name)}</a>`},{k:"seq",t:"품목기준코드",v:d=>d.seq},{k:"ingr",t:"주성분",v:d=>d.ingr},{k:"co",t:"업체",v:d=>d.co.name,h:d=>`<a class="link" href="#company-${d.co.id}">${esc(d.co.name)}</a>`},
+    {k:"kind",t:"전문/일반",v:d=>d.kind},{k:"atc",t:"ATC",v:d=>d.atc},{k:"date",t:"허가일",v:d=>d.date},{k:"status",t:"상태",v:d=>d.status,h:d=>`<span class="pill ${d.status==="정상"?"p-ok":"p-mute"}">${d.status}</span>`}]});
+  V._bind=t.bind;
+  return `<div class="pagehead"><div><div class="crumb">탐색</div><h1>의약품</h1></div>${meta("의약품 제품허가 목록·상세")}</div>
+  <div class="notice">표의 품목은 모두 샘플입니다. 실제 허가 품목은 ${fmt(REAL.permits)}건(취하 포함)입니다.</div>
+  <div class="panel">${t.html}</div>`};
+V.drug=(id)=>{const d=drugs.find(x=>x.id===id)||drugs[0];const same=drugs.filter(x=>x.ingr===d.ingr&&x!==d);
+  return `<div class="pagehead"><div><div class="crumb"><a class="link" href="#drugs">의약품</a> / 상세</div><h1>${esc(d.name)} <span class="tag t-sample" style="vertical-align:middle">샘플</span></h1></div></div>
+  ${meta("제품허가 목록·상세, 회수·판매중지, 공급중단, 안전성서한 (품목기준코드 연결)")}
+  <dl class="idgrid" style="margin:0">
+    <div><dt>품목기준코드</dt><dd>${d.seq}</dd></div><div><dt>업체</dt><dd><a class="link" href="#company-${d.co.id}">${esc(d.co.name)}</a></dd></div>
+    <div><dt>주성분</dt><dd>${esc(d.ingr)}</dd></div><div><dt>전문/일반</dt><dd>${d.kind}의약품</dd></div>
+    <div><dt>ATC 코드</dt><dd>${d.atc}</dd></div><div><dt>허가일</dt><dd>${d.date}</dd></div>
+    <div><dt>보험코드(EDI)</dt><dd>${d.edi}</dd></div><div><dt>상태</dt><dd><span class="pill ${d.status==="정상"?"p-ok":"p-mute"}">${d.status}</span></dd></div>
+  </dl>
+  <div class="grid2">
+    <div class="panel"><div class="ph"><div><h2>안전·공급 이력</h2><div class="src">회수·공급중단·안전성서한 중 이 품목</div></div>${S(1)}</div>
+      <div class="timeline"><div class="r"><span class="when">2025-02-11</span><span class="pill p-warn">공급중단</span><span>원료 수급 · 재고 소진 예상 2025-04</span></div>
+      <div class="r"><span class="when">2022-09-30</span><span class="pill p-new">안전성서한</span><span>${esc(d.ingr)} 성분 이상사례 관련 안내</span></div></div></div>
+    <div class="panel"><div class="ph"><div><h2>같은 성분 품목</h2><div class="src">제품허가 목록 · 성분명 일치</div></div>${S(1)}</div>
+      <div class="feed">${(same.length?same:drugs.slice(0,4)).slice(0,5).map(x=>`<div class="r"><span class="pill ${x.kind==="전문"?"p-new":"p-mute"}">${x.kind}</span><a class="link" href="#drug-${x.id}">${esc(x.name)}</a><span class="when">${esc(x.co.name)}</span></div>`).join("")}</div></div>
+  </div>`};
+V.stats=()=>{const atc=[{k:"순환계(C)",v:7840},{k:"소화계·대사(A)",v:7215},{k:"신경계(N)",v:6620},{k:"항감염(J)",v:4980},{k:"근골격계(M)",v:3110},{k:"호흡기계(R)",v:2870}];
+  return `<div class="pagehead"><div><div class="crumb">분석</div><h1>산업 통계</h1></div>${meta("생산·수입실적, 제품허가 목록·상세")}</div>
+  <div class="notice">생산·수입실적은 연 1회 갱신됩니다. 아래 차트는 모두 샘플입니다. 실제 생산·수입실적은 ${fmt(REAL.prod)}행이 있습니다.</div>
+  <div class="grid2">
+    <div class="panel"><div class="ph"><div><h2>연도별 생산·수입 금액</h2><div class="src">생산·수입실적 · 조 원</div></div>${S(1)}</div>
+      ${lineChart(prodYears,[{v:prodAmt,c:"var(--accent)",area:true},{v:importAmt,c:"var(--accent2)"}],{unit:""})}
+      <div class="legend"><span style="--c:var(--accent)">생산</span><span style="--c:var(--accent2)">수입</span></div></div>
+    <div class="panel"><div class="ph"><div><h2>ATC 대분류별 유효 허가 품목</h2><div class="src">제품허가 상세 · ATC 코드</div></div>${S(1)}</div>${barChart(atc)}</div>
+    <div class="panel"><div class="ph"><div><h2>연도별 신규 허가</h2><div class="src">제품허가 목록 · 허가일자</div></div>${S(1)}</div>${colChart(years,newPermits)}</div>
+    <div class="panel"><div class="ph"><div><h2>전문·일반 비율</h2><div class="src">제품허가 상세 · 유효 품목</div></div>${S(1)}</div>
+      ${barChart([{k:"전문의약품",v:24310},{k:"일반의약품",v:9870}],{h:80})}
+      <div class="ph" style="margin-top:12px"><div><h2>지역별 업체 수</h2><div class="src">업체허가 목록 · 소재지</div></div>${S(1)}</div>
+      ${barChart([{k:"경기",v:812},{k:"서울",v:604},{k:"충북",v:311},{k:"인천",v:248},{k:"기타",v:896}],{h:140,c:"var(--accent2)"})}</div>
+  </div>`};
+V.regulation=()=>`<div class="pagehead"><div><div class="crumb">분석</div><h1>규제·품질</h1></div>${meta("GMP 적합판정, 해외제조소, 행정처분")}</div>
+  <div class="kpis"><div class="kpi"><div class="l">GMP 적합판정 ${S(0)}</div><div class="v">${fmt(REAL.gmp)}</div><div class="s">발급 현황</div></div>
+  <div class="kpi"><div class="l">해외제조소 ${S(0)}</div><div class="v">${fmt(REAL.overseas)}</div><div class="s">등록 누적</div></div>
+  <div class="kpi"><div class="l">행정처분 ${S(0)}</div><div class="v">${fmt(REAL.admin)}</div><div class="s">공개 중</div></div></div>
+  <div class="grid2">
+    <div class="panel"><div class="ph"><div><h2>해외제조소 국가별</h2><div class="src">해외제조소 · 소재국</div></div>${S(1)}</div>${barChart([{k:"중국",v:3120},{k:"인도",v:2410},{k:"미국",v:1680},{k:"이탈리아",v:1050},{k:"독일",v:980},{k:"일본",v:910},{k:"스페인",v:620}],{c:"var(--accent2)"})}</div>
+    <div class="panel"><div class="ph"><div><h2>행정처분 유형</h2><div class="src">행정처분 · 처분명</div></div>${S(1)}</div>${barChart([{k:"판매업무정지",v:182},{k:"제조업무정지",v:121},{k:"과징금",v:96},{k:"경고",v:84},{k:"허가취소",v:31}],{c:"var(--warn)"})}</div>
+    <div class="panel"><div class="ph"><div><h2>월별 행정처분</h2><div class="src">행정처분 · 처분일자</div></div>${S(1)}</div>${colChart(["6월","7월","8월","9월","10월","11월"],[38,44,29,51,47,22],{c:"var(--warn)"})}</div>
+    <div class="panel"><div class="ph"><div><h2>GMP 유효기한 도래</h2><div class="src">GMP 적합판정 · 유효기한</div></div>${S(1)}</div>${colChart(["2026","2027","2028","2029"],[88,164,201,116],{c:"var(--ok)"})}
+      <div class="link-state" style="margin-top:6px"><span class="dot w"></span>GMP에는 공장 고유 ID가 없어 업체 연결은 사업자번호, 공장 연결은 주소 문자열(검증대기)로 표시</div></div>
+  </div>`;
+V.supply=()=>{const items=Array.from({length:24},(_,i)=>{const d=pick(drugs);return {d,kind:rnd()<0.6?"공급중단":"공급부족",date:"2025-"+String(1+Math.floor(rnd()*11)).padStart(2,"0")+"-"+String(1+Math.floor(rnd()*28)).padStart(2,"0"),why:pick(["원료 수급","채산성","생산 중단","수요 급증"])}});
+  const t=table({id:"ts",rows:items,ph:"품목명 또는 업체",sort:"date",text:x=>x.d.name+x.d.co.name,filter:{label:"구분",opts:["공급중단","공급부족"],get:x=>x.kind},
+    cols:[{k:"date",t:"보고일",v:x=>x.date},{k:"kind",t:"구분",v:x=>x.kind,h:x=>`<span class="pill ${x.kind==="공급중단"?"p-warn":"p-bad"}">${x.kind}</span>`},{k:"name",t:"품목명",v:x=>x.d.name,h:x=>`<a class="link" href="#drug-${x.d.id}">${esc(x.d.name)}</a>`},{k:"co",t:"업체",v:x=>x.d.co.name},{k:"why",t:"사유",v:x=>x.why}]});
+  V._bind=t.bind;
+  return `<div class="pagehead"><div><div class="crumb">분석</div><h1>공급·안전</h1></div>${meta("회수·판매중지, 공급중단, 공급부족, 안전성서한")}</div>
+  <div class="kpis"><div class="kpi"><div class="l">회수·판매중지 ${S(0)}</div><div class="v">${fmt(REAL.recalls)}</div><div class="s">공개 누적</div></div>
+  <div class="kpi"><div class="l">공급중단 ${S(0)}</div><div class="v">${fmt(REAL.suspend)}</div><div class="s">보고 누적</div></div>
+  <div class="kpi"><div class="l">공급부족 ${S(0)}</div><div class="v">${fmt(REAL.shortage)}</div><div class="s">보고 누적</div></div>
+  <div class="kpi"><div class="l">안전성서한 ${S(0)}</div><div class="v">${fmt(REAL.letters)}</div><div class="s">발행 누적</div></div></div>
+  <div class="panel"><div class="ph"><div><h2>월별 회수·공급중단</h2><div class="src">회수 명령일 · 공급중단 보고일</div></div>${S(1)}</div>
+    ${lineChart(["6월","7월","8월","9월","10월","11월"],[{v:[11,8,14,9,12,9],c:"var(--bad)"},{v:[19,22,15,24,16,14],c:"var(--warn)"}])}
+    <div class="legend"><span style="--c:var(--bad)">회수</span><span style="--c:var(--warn)">공급중단</span></div></div>
+  <div class="panel"><div class="ph"><div><h2>공급중단·공급부족 통합 목록</h2><div class="src">두 API를 품목기준코드로 합침</div></div>${S(1)}</div>${t.html}</div>`};
+V.changes=()=>`<div class="pagehead"><div><div class="crumb">분석</div><h1>변경 모니터링</h1></div>${meta("매일 수집 결과의 추가·변경·삭제 이력")}</div>
+  <div class="notice">첫 정식 수집은 기준선이라 변경 이력이 없습니다. 둘째 날부터 쌓이며, 과거 이력은 만들어 넣지 않습니다. 아래는 샘플입니다.</div>
+  <div class="kpis"><div class="kpi"><div class="l">오늘 추가 ${S(1)}</div><div class="v">27</div><div class="s">신규 허가 21 · 회수 2 · 기타 4</div></div>
+  <div class="kpi"><div class="l">오늘 변경 ${S(1)}</div><div class="v">64</div><div class="s">허가 상태 변경 포함</div></div>
+  <div class="kpi"><div class="l">오늘 조회 안 됨 ${S(1)}</div><div class="v">3</div><div class="s">API에서 사라짐 (취하와 다름)</div></div></div>
+  <div class="panel"><div class="ph"><div><h2>최근 변경 내역</h2><div class="src">change_log</div></div>${S(1)}</div>
+    <div class="timeline">
+      <div class="r"><span class="when">11-18 03:12</span><span class="pill p-new">추가</span><span>제품허가 · 샘플제약 C · 로수바스타틴 필름코팅정 10mg</span></div>
+      <div class="r"><span class="when">11-18 03:12</span><span class="pill p-warn">변경</span><span>제품허가 · 샘플제약 R · 아세트아미노펜 정 500mg — 상태 정상 → 취하</span></div>
+      <div class="r"><span class="when">11-18 03:14</span><span class="pill p-new">추가</span><span>회수 · 샘플제약 H · 세파클러 캡슐 250mg</span></div>
+      <div class="r"><span class="when">11-18 03:15</span><span class="pill p-mute">조회 안 됨</span><span>행정처분 · 샘플제약 D — 공개기간 종료 추정</span></div>
+      <div class="r"><span class="when">11-17 03:11</span><span class="pill p-warn">변경</span><span>GMP · 샘플제약 E — 유효기한 2026-05 → 2029-05</span></div>
+    </div></div>`;
+
+function route(){V._bind=null;const h=(location.hash||"#dashboard").slice(1);let v=h,arg=null;const m=h.match(/^(company|drug)-(\w+)$/);if(m){v=m[1];arg=m[2]}
+  if(!V[v]||v.startsWith("_"))v="dashboard";
+  document.getElementById("view").innerHTML=V[v](arg);if(V._bind)V._bind();
+  const navKey=v==="company"?"companies":v==="drug"?"drugs":v;
+  document.querySelectorAll("#nav a").forEach(a=>a.classList.toggle("on",a.dataset.v===navKey));window.scrollTo(0,0)}
+window.addEventListener("hashchange",route);route();
+document.getElementById("q").addEventListener("keydown",e=>{if(e.key==="Enter"){const q=e.target.value.trim();if(!q)return;
+  const c=companies.find(x=>x.name.includes(q)||x.biz.includes(q));const d=drugs.find(x=>x.name.includes(q)||x.ingr.includes(q)||x.seq.includes(q));
+  if(c)location.hash="company-"+c.id;else if(d)location.hash="drug-"+d.id;else toast("시안 데이터에서 찾지 못했습니다. 예: 샘플제약 A, 로수바스타틴")}});
+})();
+</script>
+
+</body>
+</html>
