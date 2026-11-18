@@ -407,7 +407,13 @@ V.drug = async seq => {
     chunk.split("|").forEach(p => { const i = p.indexOf(":"); if (i > 0) o[p.slice(0, i).trim()] = p.slice(i + 1).trim(); });
     return o;
   }).filter(o => o["성분명"]);
-  const matTotal = [...new Set(mats.map(o => o["총량"]).filter(Boolean))].join(" / ");
+  // 변경 이력: '내용, YYYY-MM-DD/내용, YYYY-MM-DD/...' 형식
+  const histCut = String(d.change_hist || "").endsWith("…");
+  const hist = String(d.change_hist || "").replace(/…$/, "").split("/").map(s => {
+    const m = s.trim().match(/^(.*?),\s*(\d{4}-\d{2}-\d{2})$/);
+    return m ? { t: m[1].trim(), d: m[2] } : { t: s.trim(), d: "" };
+  }).filter(h => h.t);
+  const matTotal =[...new Set(mats.map(o => o["총량"]).filter(Boolean))].join(" / ");
   const matCut = String(d.material || "").endsWith("…");
   const matTable = mats.length ? `<div class="tbl-wrap"><table><thead><tr><th>성분명</th><th class="n">분량</th><th>단위</th><th>규격</th><th>비고</th></tr></thead><tbody>${mats.map(o =>
     `<tr><td class="wrap">${esc(o["성분명"])}</td><td class="n">${esc(o["분량"] || "")}</td><td>${esc(o["단위"] || "")}</td><td>${esc(o["규격"] || "")}</td><td class="wrap muted">${esc((o["성분정보"] || "").replace(/…$/, ""))}</td></tr>`).join("")}</tbody></table></div>`
@@ -425,7 +431,7 @@ V.drug = async seq => {
     ${field("허가일 · 구분", `${esc(r[4])} · ${esc(r[11])}`)}
     ${field("전문/일반", esc(r[5]))}
     ${field("ATC 코드", esc(r[9]))}
-    ${field("주성분", esc(r[7] || d.ingr_eng))}
+    ${field("주성분", esc(String(r[7] || d.ingr_eng || "").replace(/\s*\|\s*/g, ", ")))}
     ${field("영문 성분", esc(r[8]))}
     ${field("영문 제품명", esc(d.eng))}
     ${field("분류", esc(d.type))}
@@ -438,8 +444,10 @@ V.drug = async seq => {
     ${field("유효기간", esc(d.valid))}
     ${field("포장단위", esc(d.pack))}
     ${field("성상", esc(d.chart))}
-    ${field("최근 변경일 · 변경 내용", `${esc(d.change_date)}${d.change_hist ? `<div class="muted small">${esc(d.change_hist)}</div>` : ""}`)}
+    ${field("최근 변경일", esc(d.change_date))}
   </dl>
+  ${hist.length ? panel(`허가 변경 이력 (${hist.length}건)`, `<div class="tbl-wrap"><table><thead><tr><th>변경일</th><th>변경 내용</th></tr></thead><tbody>${hist.map(h => `<tr><td>${esc(h.d || "–")}</td><td class="wrap">${esc(h.t)}</td></tr>`).join("")}</tbody></table></div>`
+    + (histCut ? `<div class="srcline">일부 이력만 표시됩니다. 전체 이력은 '의약품안전나라에서 보기'에서 확인하세요.</div>` : ""), "식약처 허가 상세의 변경 이력(최신순)") : ""}
   ${mats.length ? panel(`원료·분량 (${mats.length}개 성분)`, matTable, matTotal ? `총량 ${esc(matTotal)}` : "") : ""}
   ${panel("허가 문서 (식약처 원문)", `<div class="docs">${doc(d.doc_ee, "효능·효과 (PDF)")}${doc(d.doc_ud, "용법·용량 (PDF)")}${doc(d.doc_nb, "사용상 주의사항 (PDF)")}<a class="btn" href="https://nedrug.mfds.go.kr/pbp/CCBBB01/getItemDetail?itemSeq=${esc(r[0])}" target="_blank" rel="noopener">의약품안전나라에서 보기</a></div><div class="srcline">문서 본문은 저장하지 않고 식약처 의약품안전나라 원문으로 연결합니다.</div>`)}
   <div class="grid2">
