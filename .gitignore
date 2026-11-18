@@ -7,3 +7,4 @@ data/*.gz
 data/last_run.json
 site/data/
 .claude/
+site/index.preview.html

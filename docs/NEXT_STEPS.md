@@ -22,7 +22,9 @@
 4-2. ~~제품허가 상세 줄이는 방법 조사~~ 완료 (2026-11-18, API_CATALOG.md E-5): 변경일자(`start_change_date`, YYYYMMDD)·품목기준코드(`item_seq`) 필터 동작 확인. 문서 필드(NB/UD/EE_DOC_DATA)가 상세 용량의 약 84%
 4-3. ~~상세 증분 수집 구현~~ (2026-11-18): `collector/run.py` collect_incremental, `store.py` drop_fields·migrate. 첫 실제 실행에서 소요 시간·DB 크기 확인 필요
 5. 보류(hold) API는 특허·임상·제네릭 메뉴 채택 시 수집
-6. 표준화 계층(company·product 등)과 사이트용 데이터 내보내기 설계
+6. ~~사이트용 데이터 내보내기~~ 완료 (2026-11-18, sitebuild/export.py)
+7. **[사용자 승인 대기] GitHub Pages 공개 배포**: site/ + Release의 site-data를 Pages로 배포하는 단계를 site.yml에 추가
+8. 생산·수입실적 수집이 느린 원인 확인 (첫 수집 8분 → 두 번째 약 25분): 페이지별 소요 시간 로그 추가
 
 ## Phase 2 진입 준비 (수집 기반) — 이전 메모
 
