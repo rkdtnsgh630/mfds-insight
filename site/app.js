@@ -36,7 +36,14 @@ function head(title, crumb, srcIds) {
   return `<div class="pagehead"><div><div class="crumb">${crumb || "MFDS INSIGHT"}</div><h1>${title}</h1></div>
     <div class="meta"><span>데이터 기준일 <b>${esc(META.as_of)}</b></span>${src ? `<span>출처 <b>${src}</b></span>` : ""}</div></div>`;
 }
-const srcline = (ids, extra) => `<div class="srcline">출처: ${ids.map(id => `<a href="${esc(API(id).url)}" target="_blank" rel="noopener">${esc(API(id).name)}</a>`).join(" · ")}${extra ? " · " + extra : ""}</div>`;
+// 일부 API는 최근 몇 년치만 제공한다 → 출처 줄에 실제 데이터가 시작하는 날짜를 함께 적는다
+const COV_IDS = new Set(["recall_drug", "admin_action", "supply_suspend", "supply_shortage", "safety_letter"]);
+const covNote = ids => ids.filter(id => COV_IDS.has(id) && META.coverage && META.coverage[id])
+  .map(id => `${esc(API(id).name.replace(/^의약품\s*/, ""))} ${esc(META.coverage[id][0])}부터`).join(", ");
+const srcline = (ids, extra) => {
+  const cov = covNote(ids);
+  return `<div class="srcline">출처: ${ids.map(id => `<a href="${esc(API(id).url)}" target="_blank" rel="noopener">${esc(API(id).name)}</a>`).join(" · ")}${extra ? " · " + extra : ""}${cov ? ` · 제공 기간: ${cov}` : ""}</div>`;
+};
 const panel = (title, body, sub) => `<section class="panel"><div class="ph"><div><h2>${title}</h2>${sub ? `<div class="src">${sub}</div>` : ""}</div></div>${body}</section>`;
 const kpi = (label, value, sub, href) => `<div class="kpi"><div class="l">${label}</div>${href ? `<a class="v" href="${href}">${value}</a>` : `<div class="v">${value}</div>`}<div class="s">${sub || ""}</div></div>`;
 const linkDrug = (seq, name) => seq ? `<a class="link" href="#drug/${esc(seq)}">${esc(name || seq)}</a>` : esc(name);
@@ -47,16 +54,34 @@ const empty = t => `<div class="empty">${t || "해당 기록이 없습니다."}<
 // ---------- 차트 (SVG, 외부 라이브러리 없음) ----------
 function niceStep(r) { if (!(r > 0)) return 1; const p = Math.pow(10, Math.floor(Math.log10(r))); const n = r / p; return (n <= 1 ? 1 : n <= 2 ? 2 : n <= 5 ? 5 : 10) * p; }
 function tick(v, f) { if (v === 0) return "0"; return f ? f(v) : (v >= 1000 ? fmt(v) : String(Math.round(v * 10) / 10)); }
+// 차트는 자리만 먼저 만들고, 화면에 붙은 뒤 실제 너비(px)로 그린다 → 패널 너비와 상관없이 글자 크기가 같다
+const CHARTS = new Map();
+let CID = 0;
+function deferChart(fn, after) { const id = "c" + (++CID); CHARTS.set(id, fn); return `<div class="chart" data-cid="${id}"></div>${after || ""}`; }
+function drawCharts(root) {
+  (root || document).querySelectorAll(".chart[data-cid]").forEach(el => {
+    const fn = CHARTS.get(el.dataset.cid); if (!fn) return;
+    const W = Math.max(280, Math.round(el.clientWidth));
+    if (el._w === W) return;
+    el._w = W; el.innerHTML = fn(W);
+  });
+}
+let RZ; window.addEventListener("resize", () => { clearTimeout(RZ); RZ = setTimeout(() => drawCharts(), 150); });
+
 function lineChart(xs, series, o = {}) {
-  const W = 640, H = o.h || 210, L = o.L || 66, R = 14, T = 12, B = 26;
   const all = series.flatMap(s => s.v).filter(v => v != null);
   if (!xs.length || !all.length) return empty("표시할 데이터가 없습니다.");
+  const legend = series.length > 1 ? `<div class="legend">${series.map(s => `<span style="--c:${s.c}">${esc(s.n)}</span>`).join("")}</div>` : "";
+  return deferChart(W => lineSvg(W, xs, series, o, all), legend);
+}
+function lineSvg(W, xs, series, o, all) {
+  const H = o.h || 210, L = o.L || 66, R = 14, T = 12, B = 26;
   const mx = Math.max(1, ...all), step = niceStep(mx / 4), top = Math.ceil(mx / step) * step;
   const x = i => xs.length === 1 ? (L + W - R) / 2 : L + (W - L - R) * i / (xs.length - 1);
   const y = v => T + (H - T - B) * (1 - v / top);
   let g = "";
   for (let v = 0; v <= top + 1e-9; v += step) g += `<line x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}" stroke="var(--line)"/><text x="${L - 8}" y="${y(v) + 4}" text-anchor="end">${tick(v, o.tf)}</text>`;
-  const every = Math.ceil(xs.length / 12);
+  const every = Math.ceil(xs.length / Math.max(4, Math.floor((W - L) / 56)));
   xs.forEach((t, i) => { if (i % every === 0 || i === xs.length - 1) g += `<text x="${x(i)}" y="${H - 6}" text-anchor="middle">${esc(o.xf ? o.xf(t) : t)}</text>`; });
   series.forEach(s => {
     const pts = s.v.map((v, i) => `${x(i)},${y(v || 0)}`).join(" ");
@@ -64,37 +89,44 @@ function lineChart(xs, series, o = {}) {
     g += `<polyline points="${pts}" fill="none" stroke="${s.c}" stroke-width="2.2" stroke-linejoin="round"/>`;
     s.v.forEach((v, i) => { g += `<circle cx="${x(i)}" cy="${y(v || 0)}" r="${i === s.v.length - 1 ? 4 : 2.5}" fill="${s.c}" stroke="var(--panel)" stroke-width="1.5"><title>${esc(xs[i])} ${esc(s.n || "")}: ${esc(o.vf ? o.vf(v) : fmt(v))}</title></circle>`; });
   });
-  const legend = series.length > 1 ? `<div class="legend">${series.map(s => `<span style="--c:${s.c}">${esc(s.n)}</span>`).join("")}</div>` : "";
-  return `<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="${esc(o.label || "시계열 그래프")}">${g}</svg>${legend}`;
+  return `<svg viewBox="0 0 ${W} ${H}" width="100%" height="${H}" role="img" aria-label="${esc(o.label || "시계열 그래프")}">${g}</svg>`;
 }
 function colChart(xs, vals, o = {}) {
   if (!xs.length) return empty("표시할 데이터가 없습니다.");
-  const W = 640, H = o.h || 200, L = o.L || 66, R = 10, T = 10, B = 26;
+  return deferChart(W => colSvg(W, xs, vals, o));
+}
+function colSvg(W, xs, vals, o) {
+  const H = o.h || 200, L = o.L || 66, R = 10, T = 10, B = 26;
   const mx = Math.max(1, ...vals), step = niceStep(mx / 4), top = Math.ceil(mx / step) * step;
   const bw = (W - L - R) / xs.length, y = v => T + (H - T - B) * (1 - v / top);
   let g = "";
   for (let v = 0; v <= top + 1e-9; v += step) g += `<line x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}" stroke="var(--line)"/><text x="${L - 8}" y="${y(v) + 4}" text-anchor="end">${tick(v, o.tf)}</text>`;
-  const every = Math.ceil(xs.length / 14);
+  const every = Math.ceil(xs.length / Math.max(4, Math.floor((W - L) / 48)));
+  const bwMax = 64, pad = bw > bwMax / 0.68 ? (bw - bwMax) / 2 : bw * 0.16, bwid = Math.min(bw * 0.68, bwMax);
   vals.forEach((v, i) => {
-    const x = L + i * bw + bw * 0.16;
-    g += `<rect x="${x}" y="${y(v)}" width="${bw * 0.68}" height="${Math.max(0, y(0) - y(v))}" rx="2" fill="${o.c || "var(--accent)"}" opacity="${i === vals.length - 1 ? 1 : .75}"><title>${esc(xs[i])}: ${esc(o.vf ? o.vf(v) : fmt(v))}</title></rect>`;
-    if (i % every === 0 || i === vals.length - 1) g += `<text x="${x + bw * 0.34}" y="${H - 6}" text-anchor="middle">${esc(o.xf ? o.xf(xs[i]) : xs[i])}</text>`;
+    const x = L + i * bw + pad;
+    g += `<rect x="${x}" y="${y(v)}" width="${bwid}" height="${Math.max(0, y(0) - y(v))}" rx="2" fill="${o.c || "var(--accent)"}" opacity="${i === vals.length - 1 ? 1 : .75}"><title>${esc(xs[i])}: ${esc(o.vf ? o.vf(v) : fmt(v))}</title></rect>`;
+    if (i % every === 0 || i === vals.length - 1) g += `<text x="${x + bwid / 2}" y="${H - 6}" text-anchor="middle">${esc(o.xf ? o.xf(xs[i]) : xs[i])}</text>`;
   });
-  return `<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="${esc(o.label || "막대그래프")}">${g}</svg>`;
+  return `<svg viewBox="0 0 ${W} ${H}" width="100%" height="${H}" role="img" aria-label="${esc(o.label || "막대그래프")}">${g}</svg>`;
 }
 function barChart(items, o = {}) {
   if (!items.length) return empty("표시할 데이터가 없습니다.");
-  const W = 640, L = o.L || 150, R = 96, rowH = 24, H = items.length * rowH + 8, mx = Math.max(1, ...items.map(d => d.v));
+  return deferChart(W => barSvg(W, items, o));
+}
+function barSvg(W, items, o) {
+  const L = o.L || (W >= 560 ? 170 : 120), R = 96, rowH = 24, H = items.length * rowH + 8, mx = Math.max(1, ...items.map(d => d.v));
+  const maxc = W >= 560 ? 16 : 10;
   let g = "";
   items.forEach((d, i) => {
     const y = 4 + i * rowH, w = (W - L - R) * d.v / mx;
-    const label = d.k.length > 14 ? d.k.slice(0, 13) + "…" : d.k;
+    const label = d.k.length > maxc ? d.k.slice(0, maxc - 1) + "…" : d.k;
     const text = `<text x="${L - 8}" y="${y + rowH / 2 + 4}" text-anchor="end" style="fill:var(--fg2)">${esc(label)}<title>${esc(d.k)}</title></text>`;
     g += (d.href ? `<a href="${esc(d.href)}">${text}</a>` : text)
       + `<rect x="${L}" y="${y + 4}" width="${Math.max(2, w)}" height="${rowH - 8}" rx="3" fill="${o.c || "var(--accent)"}"><title>${esc(d.k)}: ${esc(o.vf ? o.vf(d.v) : fmt(d.v))}</title></rect>`
       + `<text x="${L + w + 6}" y="${y + rowH / 2 + 4}">${esc(o.vf ? o.vf(d.v) : fmt(d.v))}</text>`;
   });
-  return `<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="${esc(o.label || "막대그래프")}">${g}</svg>`;
+  return `<svg viewBox="0 0 ${W} ${H}" width="100%" height="${H}" role="img" aria-label="${esc(o.label || "막대그래프")}">${g}</svg>`;
 }
 
 // ---------- 표 (검색·필터·정렬·페이지·CSV) ----------
@@ -157,7 +189,7 @@ function tabs(defs) { // defs: [{k, t, html, bind}]
   const html = `<div><div class="tabs" role="tablist" id="${id}">${defs.map((d, i) => `<button role="tab" aria-selected="${i === 0}" data-i="${i}">${esc(d.t)}</button>`).join("")}</div><div id="${id}-c"></div></div>`;
   function show(i) {
     document.querySelectorAll(`#${id} button`).forEach(b => b.setAttribute("aria-selected", String(+b.dataset.i === i)));
-    const d = defs[i]; $("#" + id + "-c").innerHTML = d.html; if (d.bind) d.bind();
+    const d = defs[i]; $("#" + id + "-c").innerHTML = d.html; if (d.bind) d.bind(); drawCharts($("#" + id + "-c"));
   }
   return { html, bind() { document.querySelectorAll(`#${id} button`).forEach(b => b.addEventListener("click", () => show(+b.dataset.i))); show(0); } };
 }
@@ -262,7 +294,8 @@ V.company = async biz => {
     <div><dt>사업자등록번호</dt><dd>${esc(fmtBiz(biz))}</dd></div>
     <div><dt>소재지 (${c.region_from_admin ? "행정처분 기록" : "업체허가 목록"})</dt><dd>${(c.regions && c.regions.length ? c.regions : [c.region]).filter(Boolean).map(esc).join("<br>") || "–"}</dd></div>
     <div><dt>업종·허가 (허가별 소재지)</dt><dd>${c.licenses.length ? c.licenses.map(l => `${esc(l[0])} <span class="muted small">(${esc(l[1] || "–")}${l[3] ? " · " + esc(l[3]) : ""})</span>`).join("<br>") : '<span class="muted">업체허가 목록에 없음</span>'}</dd></div>
-    <div><dt>GMP 적합판정 공장 (${(c.factories || []).length}곳)</dt><dd>${(c.factories || []).length ? c.factories.map(esc).join("<br>") : '<span class="muted">GMP 발급 기록 없음</span>'}</dd></div>
+    <div style="grid-column:1/-1"><dt>GMP 적합판정 공장 (${c.gmp.length}건 · ${(c.factories || []).length}개 지역)</dt><dd>${c.gmp.length ? c.gmp.map(g => `${esc(g[2] || "주소 없음")} <span class="muted small">· ${esc(g[0])}${g[1] ? " · " + esc(g[1]) : ""} · 유효 ~${esc(g[3] || "–")}</span>`).join("<br>")
+      + (c.gmp.length < 2 ? "" : `<div class="muted small" style="margin-top:4px">공공데이터상 이 공장들은 모두 사업자번호 ${esc(fmtBiz(biz))} 하나로 등록되어 있어, 공장별 회수·처분도 이 업체 기록에 함께 모입니다.</div>`) : '<span class="muted">GMP 발급 기록 없음</span>'}</dd></div>
     <div><dt>수집 데이터에 쓰인 상호</dt><dd>${c.names.map(esc).join(", ")}</dd></div>
   </dl>
   <div class="kpis">
@@ -270,7 +303,7 @@ V.company = async biz => {
     ${kpi(`${ly || "최근"} 생산실적`, lp && lp.p ? wonM(lp.p) : "–", lp && lp.np ? `${fmt(lp.np)}건 집계` : "기록 없음")}
     ${kpi(`${ly || "최근"} 수입실적`, lp && lp.i ? usd(lp.i) : "–", lp && lp.ni ? `${fmt(lp.ni)}건 집계` : "기록 없음")}
     ${kpi("GMP 적합판정", fmt(c.gmp.length), "발급 현황")}
-    ${kpi("행정처분 · 회수", `${fmt(c.admin.length)} · ${fmt(c.recall.length)}`, "공개 중인 기록")}
+    ${kpi("행정처분 · 회수", `${fmt(c.admin.length)} · ${fmt(c.recall.length)}`, META.coverage && META.coverage.recall_drug ? `회수는 ${esc(META.coverage.recall_drug[0])} 이후 공개분` : "공개 중인 기록")}
     ${kpi("공급중단 · 부족", `${fmt(c.suspend.length)} · ${fmt(c.shortage.length)}`, "신고 기록")}
   </div>
   <div class="grid2">
@@ -484,9 +517,10 @@ V.changes = async () => {
 };
 
 V.about = async () => {
-  const rows = META.apis.map(a => `<tr><td><a class="link" href="${esc(a.url)}" target="_blank" rel="noopener">${esc(a.name)}</a></td><td class="n">${fmt(a.count)}</td><td>${esc((a.last || "").replace("T", " ").replace("Z", " UTC"))}</td></tr>`).join("");
+  const cv = id => { const c = META.coverage && META.coverage[id]; return c ? `${esc(c[0])} ~ ${esc(c[1])}` : '<span class="muted">–</span>'; };
+  const rows = META.apis.map(a => `<tr><td><a class="link" href="${esc(a.url)}" target="_blank" rel="noopener">${esc(a.name)}</a></td><td class="n">${fmt(a.count)}</td><td>${cv(a.id)}</td><td>${esc((a.last || "").replace("T", " ").replace("Z", " UTC"))}</td></tr>`).join("");
   const html = head("데이터 출처·기준", "안내", []) + `
-  ${panel("수집 데이터", `<div class="tbl-wrap"><table><thead><tr><th>데이터 (공공데이터포털)</th><th class="n">현재 건수</th><th>최근 수집</th></tr></thead><tbody>${rows}</tbody></table></div>`)}
+  ${panel("수집 데이터", `<div class="tbl-wrap"><table><thead><tr><th>데이터 (공공데이터포털)</th><th class="n">현재 건수</th><th>자료 기간 (날짜 필드 기준)</th><th>최근 수집</th></tr></thead><tbody>${rows}</tbody></table></div>`)}
   ${panel("표시 기준", `<ul class="small" style="margin:0;padding-left:18px;line-height:1.9">
     <li>모든 수치는 식품의약품안전처 공공데이터 API가 돌려준 값입니다. 사이트가 값을 추정하거나 만들어 넣지 않습니다.</li>
     <li>업체는 사업자등록번호, 품목은 품목기준코드로만 연결합니다. 이름이 비슷하다는 이유로 같은 업체로 묶지 않습니다.</li>
@@ -522,12 +556,14 @@ async function route() {
   const navKey = { company: "companies", drug: "drugs", search: "" }[view] ?? view;
   document.querySelectorAll("#nav a").forEach(a => a.classList.toggle("on", a.dataset.v === navKey));
   const el = $("#view");
+  CHARTS.clear();
   el.innerHTML = '<div class="loading">불러오는 중…</div>';
   try {
     const r = await V[view](arg);
     if (location.hash && decodeURIComponent(location.hash.slice(1)) !== h) return; // 그 사이 다른 화면으로 이동
     el.innerHTML = r.html;
     if (r.bind) r.bind();
+    drawCharts(el);
     document.title = (el.querySelector("h1") ? el.querySelector("h1").textContent + " · " : "") + "MFDS INSIGHT";
     window.scrollTo(0, 0);
   } catch (e) {

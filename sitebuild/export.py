@@ -406,7 +406,16 @@ class Exporter:
             api_meta.append({"id": a, "name": name, "count": len(P[a]), "last": lastok, "baseline": baseline.get(a),
                              "url": f"https://www.data.go.kr/data/{did}/openapi.do"})
 
-        meta = {"as_of": self.as_of, "since30": self.since30, "generated_at": datetime.now(KST).strftime("%Y-%m-%d %H:%M"),
+        def span(rows, idx):
+            ds = sorted(r[idx] for r in rows if r[idx])
+            return [ds[0], ds[-1]] if ds else None
+
+        # API가 제공하는 기간 (예: 회수는 최근 몇 년치만 제공) — 화면에 "이 기간 자료만 있음"을 알리기 위함
+        coverage = {"recall_drug": span(recalls, 0), "admin_action": span(admins, 0),
+                    "supply_suspend": span(suspends, 0), "supply_shortage": span(shortages, 0),
+                    "safety_letter": span(letters, 0), "drug_permit": span(drugs, 4),
+                    "production_import": [years[0], years[-1]] if years else None}
+        meta = {"as_of": self.as_of, "since30": self.since30, "coverage": coverage, "generated_at": datetime.now(KST).strftime("%Y-%m-%d %H:%M"),
                 "apis": api_meta, "latest_prod_year": latest_year, "hidden_suspend": hidden_suspend,
                 "units": {"prod": "백만원", "import": "달러"}}
 

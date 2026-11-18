@@ -93,6 +93,8 @@ class ExportTests(unittest.TestCase):
         self.assertEqual(dash["kpi"]["new_cancels_30"], 1)
         self.assertEqual(dash["kpi"]["suspends_total"], 1)  # 공개 비동의 1건 제외
         self.assertEqual(meta["hidden_suspend"], 1)
+        self.assertEqual(meta["coverage"]["recall_drug"], ["2026-11-15", "2026-11-15"])
+        self.assertEqual(meta["coverage"]["production_import"], ["2025", "2025"])
         comp = load("companies_index.json")["rows"]
         self.assertEqual(len(comp), 1)
         self.assertEqual(comp[0][1], "가제약주식회사")  # 업체허가 목록 상호 우선
