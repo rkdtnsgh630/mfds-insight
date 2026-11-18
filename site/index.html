@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>MFDS INSIGHT</title>
+<meta name="description" content="식품의약품안전처 의약품 공공데이터를 업체·품목 단위로 연결해 보여주는 대시보드">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@500;600&family=Noto+Sans+KR:wght@400;500;700&display=swap">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="app">
+<aside>
+  <div class="brand"><i aria-hidden="true"></i>MFDS INSIGHT</div>
+  <nav id="nav" aria-label="주 메뉴">
+    <a href="#dashboard" data-v="dashboard">종합 대시보드</a>
+    <div class="grp">탐색</div>
+    <a href="#companies" data-v="companies">제약회사</a>
+    <a href="#drugs" data-v="drugs">의약품</a>
+    <div class="grp">분석</div>
+    <a href="#stats" data-v="stats">산업 통계</a>
+    <a href="#regulation" data-v="regulation">규제·품질</a>
+    <a href="#supply" data-v="supply">공급·안전</a>
+    <a href="#changes" data-v="changes">변경 모니터링</a>
+    <div class="grp">안내</div>
+    <a href="#about" data-v="about">데이터 출처·기준</a>
+  </nav>
+  <div class="side-foot" id="sidefoot">출처: 식품의약품안전처 공공데이터 (data.go.kr)</div>
+</aside>
+<main>
+  <div class="topbar">
+    <form class="search" id="qform" role="search"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" style="color:var(--fg3)"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+      <input id="q" type="search" placeholder="품목명, 업체명, 성분명, 사업자번호, 품목기준코드" autocomplete="off" aria-label="통합검색"></form>
+    <span class="chip-scope" id="scope"></span>
+  </div>
+  <div class="content" id="view"><div class="loading">데이터를 불러오는 중입니다…</div></div>
+</main>
+</div>
+<div class="toast" id="toast" hidden></div>
+<script src="app.js"></script>
+</body>
+</html>

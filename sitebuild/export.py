@@ -140,6 +140,7 @@ class Exporter:
             drugs.append(row)
             items_by_biz[row[3]].append([seq, row[1], row[4], spc, status])
             drug_detail[shard(seq)][seq] = {
+                "row": row,  # 상세 화면이 큰 목록 파일 없이 열리도록 기본 정보를 함께 둔다
                 "eng": v(r, "ITEM_ENG_NAME"), "permit_no": v(r, "PRDUCT_PRMISN_NO"), "induty": v(r, "INDUTY"),
                 "type": v(r, "PRDUCT_TYPE"), "edi": v(r, "EDI_CODE"), "cnsgn": v(d, "CNSGN_MANUF"),
                 "narcotic": v(d, "NARCOTIC_KIND_CODE"), "chart": cut(v(d, "CHART"), 300),

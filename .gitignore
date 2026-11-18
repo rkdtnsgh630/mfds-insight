@@ -5,3 +5,5 @@ data/*.sqlite
 data/*.sqlite-*
 data/*.gz
 data/last_run.json
+site/data/
+.claude/

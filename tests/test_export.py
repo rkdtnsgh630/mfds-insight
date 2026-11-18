@@ -100,6 +100,7 @@ class ExportTests(unittest.TestCase):
         self.assertEqual(drug["rel"]["recall"][0][0], "2026-11-15")
         self.assertEqual(len(drug["rel"]["admin"]), 1)
         self.assertEqual(drug["doc_ee"], "https://nedrug.mfds.go.kr/x")
+        self.assertEqual(drug["row"][:2], ["202600001", "가정"])
         idx = load("drugs_index.json")
         row = dict(zip(idx["cols"], idx["rows"][0] if idx["rows"][0][0] == "202600001" else idx["rows"][1]))
         self.assertEqual((row["atc"], row["flags"], row["ingr_kr"]), ("N02BE01", "N", "아세트아미노펜"))
