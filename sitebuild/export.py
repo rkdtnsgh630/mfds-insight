@@ -161,17 +161,20 @@ class Exporter:
         rel = defaultdict(lambda: defaultdict(list))  # seq -> kind -> rows
         by_biz = defaultdict(lambda: defaultdict(list))
 
+        # 회수도 API가 최근 몇 년치만 준다(2023-11-20부터). 행정처분과 같이 빠진 기록도 지우지 않고 계속 표시 (사용자 결정 2026-11-18)
         recalls = []
-        for r in P["recall_drug"]:
+        for r, present, last_seen in self.rows_all("recall_drug"):
             row = [ymd(v(r, "RECALL_COMMAND_DATE")) or ymd(v(r, "RTRVL_CMMND_DT")), v(r, "PRDUCT"), v(r, "ENTRPS"),
-                   biz(v(r, "BIZRNO")), S(r), cut(v(r, "RTRVL_RESN"), 200), v(r, "ENFRC_YN")]
+                   biz(v(r, "BIZRNO")), S(r), cut(v(r, "RTRVL_RESN"), 200), v(r, "ENFRC_YN"),
+                   "공개 중" if present else "공개 종료",          # [7]
+                   "" if present else (last_seen or "")[:10]]     # [8] 마지막 확인일
             recalls.append(row)
         recalls.sort(key=lambda x: x[0], reverse=True)
         for row in recalls:
             if row[4]:
-                rel[row[4]]["recall"].append([row[0], row[5], row[6]])
+                rel[row[4]]["recall"].append([row[0], row[5], row[6], row[7]])
             if row[3]:
-                by_biz[row[3]]["recall"].append([row[0], row[1], row[4], row[5], row[6]])
+                by_biz[row[3]]["recall"].append([row[0], row[1], row[4], row[5], row[6], row[7]])
 
         suspends = []
         hidden_suspend = 0
@@ -455,7 +458,7 @@ class Exporter:
                 "recalls_30": len(recent(recalls, 0)), "admins_30": len(recent(admins, 0)),
                 "suspends_30": len(recent(suspends, 0)), "shortages_30": len(recent(shortages, 0)),
                 "letters_30": len(recent(letters, 0)),
-                "recalls_total": len(recalls), "admins_total": len(admins), "admins_gone": admins_gone, "suspends_total": len(suspends),
+                "recalls_total": len(recalls), "recalls_gone": sum(1 for r in recalls if r[7] == "공개 종료"), "admins_total": len(admins), "admins_gone": admins_gone, "suspends_total": len(suspends),
                 "shortages_total": len(shortages), "gmp_total": len(gmps), "overseas_total": len(overseas),
                 "letters_total": len(letters),
             },

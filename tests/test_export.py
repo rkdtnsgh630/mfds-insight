@@ -82,6 +82,9 @@ class ExportTests(unittest.TestCase):
         put(con, run_id, "admin_action", {"ADM_DISPS_SEQ": "2", "ENTP_NAME": "가제약(주)", "BIZRNO": "1234567890",
                                            "ADM_DISPS_NAME": "경고", "LAST_SETTLE_DATE": "20200101"}, "2")
         con.execute("UPDATE raw_record SET is_present=0 WHERE api_id='admin_action' AND record_key='2'")  # 공개 종료된 처분
+        put(con, run_id, "recall_drug", {"ITEM_SEQ": "199900002", "PRDUCT": "나정", "ENTRPS": "가제약(주)", "BIZRNO": "1234567890",
+                                          "RECALL_COMMAND_DATE": "20230101", "RTRVL_RESN": "이물", "ENFRC_YN": "N"}, "r0")
+        con.execute("UPDATE raw_record SET is_present=0 WHERE api_id='recall_drug' AND record_key='r0'")  # 공개 종료된 회수
         put(con, run_id, "gmp", {"BSSH_NM": "가제약(주)", "BIZRNO": "1234567890", "KGMP_BGMP_NAME": "완제의약품",
                                   "VLD_PRD_YMD": "2028-05-24", "FCTR_ADDR": "충청남도 당진시 합덕읍 1"}, "g")
         put(con, run_id, "gmp", {"BSSH_NM": "가제약(주)", "BIZRNO": "1234567890", "KGMP_BGMP_NAME": "원료의약품",
@@ -101,9 +104,10 @@ class ExportTests(unittest.TestCase):
         self.assertEqual(dash["kpi"]["suspends_total"], 1)  # 공개 비동의 1건 제외
         self.assertEqual(meta["hidden_suspend"], 1)
         self.assertEqual((dash["kpi"]["admins_total"], dash["kpi"]["admins_gone"]), (2, 1))  # 공개 종료분도 유지
+        self.assertEqual((dash["kpi"]["recalls_total"], dash["kpi"]["recalls_gone"]), (2, 1))  # 공개 종료 회수도 유지
         reg = load("regulation.json")
         self.assertEqual(sorted(r[10] for r in reg["admins"]), ["공개 종료", "공개 중"])
-        self.assertEqual(meta["coverage"]["recall_drug"], ["2026-11-15", "2026-11-15"])
+        self.assertEqual(meta["coverage"]["recall_drug"], ["2023-01-01", "2026-11-15"])  # 보관분 포함
         self.assertEqual(meta["coverage"]["production_import"], ["2025", "2025"])
         comp = load("companies_index.json")["rows"]
         self.assertEqual(len(comp), 1)
