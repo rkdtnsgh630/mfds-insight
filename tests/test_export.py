@@ -58,6 +58,8 @@ class ExportTests(unittest.TestCase):
                                                  "EE_DOC_ID": "https://nedrug.mfds.go.kr/x"}, "202600001")
         put(con, run_id, "company_list", {"BIZRNO": "1234567890", "ENTRPS": "가제약주식회사", "INDUTY": "의약품",
                                            "PRMISN_DT": "19800101", "ADRES": "충청북도 음성군", "PRMISN_NO": "1"}, "h:1")
+        put(con, run_id, "company_list", {"BIZRNO": "1234567890", "ENTRPS": "가제약주식회사", "INDUTY": "의약외품",
+                                           "PRMISN_DT": "19900101", "ADRES": "경기도 이천시", "PRMISN_NO": "2"}, "h:2")
         put(con, run_id, "production_import", {"ITEM_SEQ": "202600001", "DATE_YEAR": "2025", "RESULT_PART": "생산",
                                                 "AMT": "100.5", "BIZRNO": "1234567890", "ENTP_NAME": "가제약(주)"}, "a")
         put(con, run_id, "production_import", {"ITEM_SEQ": "199900002", "DATE_YEAR": "2025", "RESULT_PART": "수입",
@@ -74,7 +76,9 @@ class ExportTests(unittest.TestCase):
                                            "ITEM_SEQ": "202600001,199900002", "ADM_DISPS_NAME": "제조업무정지 1개월",
                                            "LAST_SETTLE_DATE": "20261020"}, "1")
         put(con, run_id, "gmp", {"BSSH_NM": "가제약(주)", "BIZRNO": "1234567890", "KGMP_BGMP_NAME": "완제의약품",
-                                  "VLD_PRD_YMD": "2028-05-24"}, "g")
+                                  "VLD_PRD_YMD": "2028-05-24", "FCTR_ADDR": "충청남도 당진시 합덕읍 1"}, "g")
+        put(con, run_id, "gmp", {"BSSH_NM": "가제약(주)", "BIZRNO": "1234567890", "KGMP_BGMP_NAME": "원료의약품",
+                                  "VLD_PRD_YMD": "2028-01-01", "FCTR_ADDR": "경기도 이천시 2"}, "g2")
         put(con, run_id, "safety_letter", {"TITLE": "서한", "PBANC_YMD": "2026-11-10", "SAFT_LETT_NO": "1"}, "l")
         con.commit()
         con.close()
@@ -93,7 +97,11 @@ class ExportTests(unittest.TestCase):
         self.assertEqual(len(comp), 1)
         self.assertEqual(comp[0][1], "가제약주식회사")  # 업체허가 목록 상호 우선
         self.assertEqual((comp[0][5], comp[0][6]), (100.5, 2000))  # 생산 백만원·수입 달러 따로
+        self.assertEqual(comp[0][2], "충청북도 음성군 외 1곳")  # 허가별 주소를 모두 반영
+        self.assertEqual(comp[0][14], "충청남도 당진시 · 경기도 이천시")  # GMP 공장 소재지
         det = load("companies/90.json")["1234567890"]
+        self.assertEqual(det["regions"], ["충청북도 음성군", "경기도 이천시"])
+        self.assertEqual(det["licenses"][1][3], "경기도 이천시")
         self.assertEqual(len(det["items"]), 2)
         self.assertEqual(det["prod"]["2025"]["p"], 100.5)
         drug = load("drugs/01.json")["202600001"]

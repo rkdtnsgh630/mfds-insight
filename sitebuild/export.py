@@ -267,14 +267,25 @@ class Exporter:
         lic = defaultdict(list)
         lic_names = defaultdict(Counter)
         names = defaultdict(Counter)
-        region = {}
+        # 소재지: 업체허가 목록은 허가(업종)마다 행이 따로 있고 행마다 주소(시·군·구)가 다를 수 있다 → 전부 보관
+        regions = defaultdict(list)
+        region_fallback = {}
         for r in P["company_list"]:
             b = biz(v(r, "BIZRNO"))
             if not b:
                 continue
-            lic[b].append([v(r, "INDUTY"), ymd(v(r, "PRMISN_DT")), v(r, "PRMISN_NO")])
+            addr = v(r, "ADRES")
+            lic[b].append([v(r, "INDUTY"), ymd(v(r, "PRMISN_DT")), v(r, "PRMISN_NO"), addr])
             lic_names[b][v(r, "ENTRPS")] += 1  # 대표 상호는 업체허가 목록을 우선
-            region.setdefault(b, v(r, "ADRES"))
+            if addr and addr not in regions[b]:
+                regions[b].append(addr)
+        # GMP 적합판정 공장 소재지 (업체허가 목록과 별개 출처)
+        factories = defaultdict(list)
+        for row in gmps:
+            if row[1] and row[4]:
+                short = " ".join(row[4].split()[:2])
+                if short not in factories[row[1]]:
+                    factories[row[1]].append(short)
         for row in drugs:
             if row[3]:
                 names[row[3]][row[2]] += 1
@@ -288,7 +299,7 @@ class Exporter:
         for row in admins:
             if row[2]:
                 names[row[2]][row[1]] += 0.5
-                region.setdefault(row[2], row[9])
+                region_fallback.setdefault(row[2], row[9])
         for row in gmps + overseas:
             if row[1]:
                 names[row[1]][row[0]] += 0.5
@@ -310,12 +321,17 @@ class Exporter:
             py = prod_biz.get(b, {})
             ly = py.get(latest_year, {})
             induty = sorted({x[0] for x in lic.get(b, []) if x[0]})
-            companies.append([b, nm, region.get(b, ""), active, len(items), round(ly.get("p", 0), 1) if ly else None,
+            regs = regions.get(b) or ([region_fallback[b]] if region_fallback.get(b) else [])
+            facs = factories.get(b, [])
+            reg_text = regs[0] + (f" 외 {len(regs) - 1}곳" if len(regs) > 1 else "") if regs else ""
+            companies.append([b, nm, reg_text, active, len(items), round(ly.get("p", 0), 1) if ly else None,
                               round(ly.get("i", 0)) if ly else None, len(bz.get("gmp", [])),
                               len(bz.get("overseas", [])), len(bz.get("admin", [])), len(bz.get("recall", [])),
-                              len(bz.get("suspend", [])), len(bz.get("shortage", [])), "·".join(induty)])
+                              len(bz.get("suspend", [])), len(bz.get("shortage", [])), "·".join(induty),
+                              " · ".join(facs)])
             company_detail[shard(b)][b] = {
-                "name": nm, "names": [n for n, _ in names[b].most_common(5)], "region": region.get(b, ""),
+                "name": nm, "names": [n for n, _ in names[b].most_common(5)], "region": reg_text,
+                "regions": regs, "region_from_admin": not regions.get(b) and bool(regs), "factories": facs,
                 "licenses": lic.get(b, []), "items": items,
                 "prod": {y: {k: round(x, 3) if isinstance(x, float) else x for k, x in d.items()}
                          for y, d in sorted(py.items())},
@@ -451,7 +467,7 @@ class Exporter:
                                                  "ingr_en", "atc", "flags", "kind", "cancel"], "rows": drugs})
         self.write("companies_index.json", {"cols": ["bizrno", "name", "region", "items_active", "items_total",
                                                      "prod_latest", "import_latest", "gmp", "overseas", "admin",
-                                                     "recall", "suspend", "shortage", "induty"],
+                                                     "recall", "suspend", "shortage", "induty", "factories"],
                                             "latest_year": latest_year, "rows": companies})
         self.write("stats.json", stats)
         self.write("regulation.json", regulation)

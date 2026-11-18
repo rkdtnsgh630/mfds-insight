@@ -212,13 +212,14 @@ V.companies = async () => {
   const c = await load("companies_index.json"), ly = c.latest_year;
   const t = table({
     rows: c.rows, sort: "active", csv: "업체목록", ph: "업체명, 사업자번호, 지역",
-    text: r => [r[1], r[0], fmtBiz(r[0]), r[2], r[13]].join(" "),
+    text: r => [r[1], r[0], fmtBiz(r[0]), r[2], r[13], r[14]].join(" "),
     filters: [{ label: "허가 품목", get: r => r[4] > 0 ? "품목 있음" : "품목 없음", opts: ["품목 있음", "품목 없음"] },
       { label: "업종", get: r => (r[13] || "").split("·")[0] || "업체허가 목록에 없음", opts: [...new Set(c.rows.map(r => (r[13] || "").split("·")[0] || "업체허가 목록에 없음"))].sort() }],
     cols: [
       { k: "name", t: "업체명", v: r => r[1], h: r => linkCo(r[0], r[1]) },
       { k: "biz", t: "사업자번호", v: r => fmtBiz(r[0]) },
-      { k: "region", t: "소재지", v: r => r[2] },
+      { k: "region", t: "소재지 (업체허가)", v: r => r[2] },
+      { k: "fac", t: "GMP 공장", v: r => r[14] || "", clip: 1 },
       { k: "active", t: "유효 품목", v: r => r[3], n: 1, h: r => fmt(r[3]) },
       { k: "total", t: "전체 품목", v: r => r[4], n: 1, h: r => fmt(r[4]) },
       { k: "prod", t: `생산 ${ly} (백만원)`, v: r => r[5], n: 1, h: r => r[5] ? fmt(r[5]) : "–" },
@@ -259,8 +260,9 @@ V.company = async biz => {
   const html = head(esc(c.name), `<a class="link" href="#companies">제약회사</a> / 업체 상세`, []) + `
   <dl class="idgrid">
     <div><dt>사업자등록번호</dt><dd>${esc(fmtBiz(biz))}</dd></div>
-    <div><dt>소재지 (업체허가 목록)</dt><dd>${esc(c.region || "–")}</dd></div>
-    <div><dt>업종·허가</dt><dd>${c.licenses.length ? c.licenses.map(l => `${esc(l[0])} <span class="muted small">(${esc(l[1] || "–")})</span>`).join("<br>") : '<span class="muted">업체허가 목록에 없음</span>'}</dd></div>
+    <div><dt>소재지 (${c.region_from_admin ? "행정처분 기록" : "업체허가 목록"})</dt><dd>${(c.regions && c.regions.length ? c.regions : [c.region]).filter(Boolean).map(esc).join("<br>") || "–"}</dd></div>
+    <div><dt>업종·허가 (허가별 소재지)</dt><dd>${c.licenses.length ? c.licenses.map(l => `${esc(l[0])} <span class="muted small">(${esc(l[1] || "–")}${l[3] ? " · " + esc(l[3]) : ""})</span>`).join("<br>") : '<span class="muted">업체허가 목록에 없음</span>'}</dd></div>
+    <div><dt>GMP 적합판정 공장 (${(c.factories || []).length}곳)</dt><dd>${(c.factories || []).length ? c.factories.map(esc).join("<br>") : '<span class="muted">GMP 발급 기록 없음</span>'}</dd></div>
     <div><dt>수집 데이터에 쓰인 상호</dt><dd>${c.names.map(esc).join(", ")}</dd></div>
   </dl>
   <div class="kpis">
