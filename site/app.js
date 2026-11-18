@@ -37,7 +37,7 @@ const PERIOD = {
   drug_permit_detail: { n: "허가 상세", same: "drug_permit" },
   production_import: { n: "생산·수입실적", basis: "실적연도", note: "연간 자료" },
   recall_drug: { n: "회수·판매중지", basis: "회수명령일" },
-  admin_action: { n: "행정처분", basis: "처분확정일", note: "공개 기간이 남은 처분만" },
+  admin_action: { n: "행정처분", basis: "처분확정일", note: "공개 종료된 처분도 수집 이후 계속 보관" },
   supply_suspend: { n: "공급중단", basis: "신고일" },
   supply_shortage: { n: "공급부족", basis: "신고일" },
   safety_letter: { n: "안전성서한", basis: "공고일" },
@@ -228,7 +228,7 @@ V.dashboard = async () => {
     ${kpi("품목 보유 업체", fmt(k.companies_with_items), `연결된 업체 ${fmt(k.companies_total)}곳 (사업자번호 기준)`, "#companies")}
     ${kpi("최근 30일 신규 허가", fmt(k.new_permits_30), `같은 기간 취하·만료 등 ${fmt(k.new_cancels_30)}건`)}
     ${kpi("최근 30일 회수·판매중지", fmt(k.recalls_30), `공개 누적 ${fmt(k.recalls_total)}건`, "#supply")}
-    ${kpi("최근 30일 행정처분", fmt(k.admins_30), `공개 중 ${fmt(k.admins_total)}건`, "#regulation")}
+    ${kpi("최근 30일 행정처분", fmt(k.admins_30), `누적 ${fmt(k.admins_total)}건${k.admins_gone ? ` (공개 종료 ${fmt(k.admins_gone)}건 포함)` : ""}`, "#regulation")}
     ${kpi("최근 30일 공급중단·부족", fmt(k.suspends_30 + k.shortages_30), `중단 ${fmt(k.suspends_30)} · 부족 ${fmt(k.shortages_30)}건`, "#supply")}
   </div>
   <div class="notice small">'최근 30일'은 ${esc(META.since30)} ~ ${esc(META.as_of)} 기간이며, 각 API의 날짜 필드(허가일자·회수명령일·처분확정일·신고일)를 기준으로 셉니다.</div>
@@ -356,7 +356,7 @@ V.company = async biz => {
     + `<div class="srcline">생산·수입실적은 허가(업)마다 따로 보고됩니다. 업 일련번호가 어느 공장(주소)인지 연결하는 정보는 공공데이터에 없어 공장 이름으로 표시하지 않습니다.</div>`, "같은 사업자번호 안의 허가(업)별 보고") : ""}
   ${panel(`허가 품목 (${fmt(c.items.length)})`, items.html)}
   <div class="grid2">
-    ${panel(`행정처분 (${c.admin.length})`, tl(c.admin, x => tr(x[0], `<span class="pill p-mute">${esc(x[2])}</span>`, `${esc(x[3])}${x[1] ? `<div class="muted small">${esc(x[1])}</div>` : ""}`)) + srcline(["admin_action"]))}
+    ${panel(`행정처분 (${c.admin.length})`, tl(c.admin, x => tr(x[0], `<span class="pill p-mute">${esc(x[2])}</span>`, `${x[5] === "공개 종료" ? `<span class="pill p-bad">공개 종료</span> ` : ""}${esc(x[3])}${x[1] ? `<div class="muted small">${esc(x[1])}</div>` : ""}`)) + srcline(["admin_action"]))}
     ${panel(`회수·판매중지 (${c.recall.length})`, tl(c.recall, x => tr(x[0], x[4] === "Y" ? `<span class="pill p-bad">강제</span>` : `<span class="pill p-mute">강제 아님</span>`, `${linkDrug(x[2], x[1])}<div class="muted small">${esc(x[3])}</div>`)) + srcline(["recall_drug"]))}
     ${panel(`공급중단 신고 (${c.suspend.length})`, tl(c.suspend, x => tr(x[0], `<span class="pill p-warn">${esc(x[3] || "중단")}</span>`, `${linkDrug(x[2], x[1])}<div class="muted small">중단일 ${esc(x[4] || "–")} · ${esc(x[5])}</div>`)) + srcline(["supply_suspend"]))}
     ${panel(`공급부족 신고 (${c.shortage.length})`, tl(c.shortage, x => tr(x[0], `<span class="pill p-warn">부족</span>`, `${linkDrug(x[2], x[1])}<div class="muted small">${esc(x[3])} · ${esc(x[4])}</div>`)) + srcline(["supply_shortage"]))}
@@ -461,7 +461,7 @@ V.drug = async seq => {
     ${panel(`회수·판매중지 (${(rel.recall || []).length})`, tl(rel.recall, x => tr(x[0], x[2] === "Y" ? `<span class="pill p-bad">강제</span>` : `<span class="pill p-mute">강제 아님</span>`, esc(x[1]))) + srcline(["recall_drug"]))}
     ${panel(`공급중단 신고 (${(rel.suspend || []).length})`, tl(rel.suspend, x => tr(x[0], `<span class="pill p-warn">${esc(x[1] || "중단")}</span>`, `중단일 ${esc(x[2] || "–")} · ${esc(x[4])}<div class="muted small">${esc(x[3])}</div>`)) + srcline(["supply_suspend"]))}
     ${panel(`공급부족 신고 (${(rel.shortage || []).length})`, tl(rel.shortage, x => tr(x[0], `<span class="pill p-warn">부족</span>`, `${esc(x[3])}<div class="muted small">${esc(x[1])}</div>`)) + srcline(["supply_shortage"]))}
-    ${panel(`행정처분 (${(rel.admin || []).length})`, tl(rel.admin, x => tr(x[0], `<span class="pill p-mute">${esc(x[1])}</span>`, esc(x[2]))) + srcline(["admin_action"]))}
+    ${panel(`행정처분 (${(rel.admin || []).length})`, tl(rel.admin, x => tr(x[0], `<span class="pill p-mute">${esc(x[1])}</span>`, `${x[3] === "공개 종료" ? `<span class="pill p-bad">공개 종료</span> ` : ""}${esc(x[2])}`)) + srcline(["admin_action"]))}
   </div>
   ${prodRows.length ? `<div class="grid2">${pP.some(v => v) ? panel("연도별 생산실적", colChart(years, pP, { vf: wonM, label: "연도별 생산실적" }) + srcline(["production_import"], "금액 단위 백만원 · 업(허가)별 보고를 합친 값, 공장 주소와의 연결 정보는 없음")) : ""}${pI.some(v => v) ? panel("연도별 수입실적", colChart(years, pI, { c: "var(--accent2)", vf: usd, tf: v => v >= 1e8 ? (v / 1e8) + "억" : v >= 1e4 ? fmt(v / 1e4) + "만" : fmt(v), label: "연도별 수입실적" }) + srcline(["production_import"], "금액 단위 달러 · 업(허가)별 보고를 합친 값, 공장 주소와의 연결 정보는 없음")) : ""}</div>` : panel("연도별 생산·수입실적", empty("생산·수입실적 기록이 없습니다."))}
   ${multiRep ? panel("보고 업체별 생산·수입실적", `<div class="tbl-wrap"><table><thead><tr><th>연도</th><th>구분</th><th>보고 업체</th><th>업 일련번호</th><th class="n">금액</th><th>비고</th></tr></thead><tbody>${prodRows.slice().reverse().map(p => {
@@ -560,10 +560,11 @@ V.regulation = async () => {
   const at = table({
     rows: g.admins, sort: "date", csv: "행정처분", ph: "업체명, 품목명, 처분 내용",
     text: r => [r[1], r[3], r[5], r[6]].join(" "),
-    filters: [{ label: "유형", get: r => r[8], opts: g.admin_type.map(x => x[0]) }],
+    filters: [{ label: "유형", get: r => r[8], opts: g.admin_type.map(x => x[0]) }, { label: "공개 상태", get: r => r[10] || "공개 중", opts: ["공개 중", "공개 종료"] }],
     cols: [{ k: "date", t: "처분확정일", v: r => r[0] }, { k: "e", t: "업체", v: r => r[1], h: r => linkCo(r[2], r[1]) },
       { k: "type", t: "유형", v: r => r[8] }, { k: "disp", t: "처분 내용", v: r => r[5], wrap: 1 }, { k: "item", t: "품목", v: r => r[3], wrap: 1 },
-      { k: "rls", t: "공개 종료일", v: r => r[7] }],
+      { k: "rls", t: "공개 종료(예정)일", v: r => r[7] },
+      { k: "st", t: "공개 상태", v: r => r[10] || "공개 중", h: r => (r[10] === "공개 종료" ? `<span class="pill p-bad">공개 종료</span>` : `<span class="pill p-ok">공개 중</span>`) + (r[11] ? `<div class="muted small">마지막 확인 ${esc(r[11])}</div>` : "") }],
   });
   let ot = null;
   const ovsBox = `<div id="ovs-box"><button class="btn" id="ovs-load" type="button">해외 제조소 전체 목록 불러오기 (${fmt(g.overseas_total)}곳)</button></div>`;
@@ -571,11 +572,11 @@ V.regulation = async () => {
   <div class="kpis">
     ${kpi("GMP 적합판정서", fmt(g.gmp.length), g.gmp_kind.map(x => `${x[0]} ${fmt(x[1])}`).join(" · "))}
     ${kpi("해외 제조소", fmt(g.overseas_total), `${g.overseas_country.length}개국 · 수입업체 ${fmt(g.overseas_companies)}곳`)}
-    ${kpi("행정처분 (공개 중)", fmt(g.admins.length), g.admin_type.map(x => `${x[0]} ${x[1]}`).join(" · "))}
+    ${kpi("행정처분 (누적)", fmt(g.admins.length), `공개 중 ${fmt(g.admins.length - (g.admin_gone || 0))} · 공개 종료 ${fmt(g.admin_gone || 0)}`)}
   </div>
   <div class="grid2">
     ${panel("해외 제조소 국가별 (상위 15)", barChart(g.overseas_country.slice(0, 15).map(x => ({ k: x[0], v: x[1] }))) + srcline(["overseas_mfr"]))}
-    ${panel("연도별 행정처분 (처분확정일 기준)", colChart(g.admin_year.map(x => x[0]), g.admin_year.map(x => x[1]), { c: "var(--fg3)", label: "연도별 행정처분" }) + srcline(["admin_action"], "공개 기간이 남은 처분만 제공됨"))}
+    ${panel("연도별 행정처분 (처분확정일 기준)", colChart(g.admin_year.map(x => x[0]), g.admin_year.map(x => x[1]), { c: "var(--fg3)", label: "연도별 행정처분" }) + srcline(["admin_action"], "API는 공개 기간이 남은 처분만 주지만, 이 사이트는 공개 종료분도 계속 보관"))}
     ${panel("GMP 유효기간 만료 연도", colChart(g.gmp_valid_year.map(x => x[0]), g.gmp_valid_year.map(x => x[1]), { c: "var(--ok)", label: "GMP 유효기간 만료 연도" }) + srcline(["gmp"]))}
     ${panel("행정처분 유형", barChart(g.admin_type.map(x => ({ k: x[0], v: x[1] })), { c: "var(--fg3)" }) + srcline(["admin_action"], "처분명 문구에 '허가취소·업무정지·과징금·경고'가 들어가는지로 분류"))}
   </div>
@@ -706,7 +707,7 @@ V.about = async () => {
     <li>업체는 사업자등록번호, 품목은 품목기준코드로만 연결합니다. 이름이 비슷하다는 이유로 같은 업체로 묶지 않습니다.</li>
     <li>생산실적은 백만원, 수입실적은 달러 단위입니다(공식 명세). 두 값을 합산하지 않습니다.</li>
     <li>공급중단 신고 중 '공개 동의하지 않음'으로 표시된 ${fmt(META.hidden_suspend)}건은 싣지 않습니다.</li>
-    <li>행정처분은 공개 기간이 남은 건만 API에서 제공됩니다. 유형은 처분명 문구로 나눈 것입니다.</li>
+    <li>행정처분은 공개 기간이 남은 건만 API에서 제공되지만, 이 사이트는 한 번 수집한 처분을 지우지 않고 '공개 종료'로 표시해 계속 보여 줍니다 (2026-11-17 첫 수집 이후분부터). 유형은 처분명 문구로 나눈 것입니다.</li>
     <li>의약품 설명서 본문(효능·용법·주의사항)은 저장하지 않고 식약처 원문 링크로 연결합니다.</li>
     <li>매일 03:00(KST) 수집합니다. 제품허가 상세는 매일 변경분만, 매월 1일 전체를 다시 받습니다.</li>
     <li>이 사이트는 공식 판단을 대신하지 않습니다. 중요한 결정 전에는 식약처 의약품안전나라 원문을 확인하세요.</li></ul>`)}

@@ -99,6 +99,11 @@ class Exporter:
         os.makedirs(os.path.join(out, "companies"), exist_ok=True)
         self.files = {}
 
+    def rows_all(self, api_id):
+        """API에서 더 이상 나오지 않는 행(is_present=0)까지 포함: (레코드, 현재 제공 여부, 마지막 확인 시각)."""
+        return [(json.loads(p), bool(pr), ls) for p, pr, ls in self.con.execute(
+            "SELECT payload, is_present, last_seen_at FROM raw_record WHERE api_id=? ORDER BY record_key", (api_id,))]
+
     def rows(self, api_id):
         return [json.loads(p) for (p,) in self.con.execute(
             "SELECT payload FROM raw_record WHERE api_id=? AND is_present=1 ORDER BY record_key", (api_id,))]
@@ -198,19 +203,24 @@ class Exporter:
             if row[3]:
                 by_biz[row[3]]["shortage"].append([row[0], row[1], row[4], row[5], row[7]])
 
+        # 행정처분은 공개 기간이 끝나면 API에서 빠진다. 사용자 결정(2026-11-18): 지우지 않고 계속 표시한다.
+        # 수집 DB는 원래 삭제하지 않고 is_present=0으로만 표시하므로, 여기서 그 행까지 포함하고 상태를 붙인다.
         admins = []
-        for r in P["admin_action"]:
+        for r, present, last_seen in self.rows_all("admin_action"):
             disp = v(r, "ADM_DISPS_NAME")
             row = [ymd(v(r, "LAST_SETTLE_DATE")), v(r, "ENTP_NAME"), biz(v(r, "BIZRNO")), cut(v(r, "ITEM_NAME"), 120),
                    v(r, "ITEM_SEQ"), cut(disp, 240), cut(v(r, "BEF_APPLY_LAW"), 200), ymd(v(r, "RLS_END_DATE")),
-                   admin_type(disp), v(r, "ADDR")]
+                   admin_type(disp), v(r, "ADDR"),
+                   "공개 중" if present else "공개 종료",          # [10] API 제공 여부
+                   "" if present else (last_seen or "")[:10]]     # [11] 마지막으로 API에서 확인된 날 (UTC 날짜)
             admins.append(row)
         admins.sort(key=lambda x: x[0], reverse=True)
+        admins_gone = sum(1 for r in admins if r[10] == "공개 종료")
         for row in admins:
             for seq in [s for s in re.split(r"[,\s]+", row[4]) if s]:
-                rel[seq]["admin"].append([row[0], row[8], row[5]])
+                rel[seq]["admin"].append([row[0], row[8], row[5], row[10]])
             if row[2]:
-                by_biz[row[2]]["admin"].append([row[0], row[3], row[8], row[5], row[7]])
+                by_biz[row[2]]["admin"].append([row[0], row[3], row[8], row[5], row[7], row[10]])
 
         letters = []
         for r in P["safety_letter"]:
@@ -445,7 +455,7 @@ class Exporter:
                 "recalls_30": len(recent(recalls, 0)), "admins_30": len(recent(admins, 0)),
                 "suspends_30": len(recent(suspends, 0)), "shortages_30": len(recent(shortages, 0)),
                 "letters_30": len(recent(letters, 0)),
-                "recalls_total": len(recalls), "admins_total": len(admins), "suspends_total": len(suspends),
+                "recalls_total": len(recalls), "admins_total": len(admins), "admins_gone": admins_gone, "suspends_total": len(suspends),
                 "shortages_total": len(shortages), "gmp_total": len(gmps), "overseas_total": len(overseas),
                 "letters_total": len(letters),
             },
@@ -478,7 +488,7 @@ class Exporter:
             "overseas_country": Counter(r[3] or "미상" for r in overseas).most_common(),
             "overseas_total": len(overseas), "overseas_companies": len({r[1] for r in overseas if r[1]}),
             "admins": admins, "admin_year": sorted(Counter(r[0][:4] for r in admins if r[0]).items()),
-            "admin_type": Counter(r[8] for r in admins).most_common(),
+            "admin_type": Counter(r[8] for r in admins).most_common(), "admin_gone": admins_gone,
         }
         supply = {
             "recalls": recalls, "suspends": suspends, "shortages": shortages, "letters": letters,
