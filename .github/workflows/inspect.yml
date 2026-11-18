@@ -10,7 +10,7 @@ on:
         default: "fields"
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   inspect:
@@ -33,4 +33,8 @@ jobs:
         run: python -m sitebuild.inspect_db --db data/mfds.sqlite --summary "$GITHUB_STEP_SUMMARY"
       - name: 생산·수입 키 중복 비교
         if: github.event.inputs.check == 'dups'
-        run: python -m sitebuild.dup_check --db data/mfds.sqlite --summary "$GITHUB_STEP_SUMMARY"
+        run: |
+          python -m sitebuild.dup_check --db data/mfds.sqlite --summary check-result.md
+          cat check-result.md >> "$GITHUB_STEP_SUMMARY"
+          # 로그인 없이 읽을 수 있도록 공개 Release에도 올린다
+          gh release upload data-latest check-result.md --clobber --repo "$GITHUB_REPOSITORY"
