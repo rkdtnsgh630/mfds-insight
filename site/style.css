@@ -171,3 +171,11 @@ td.clip{max-width:260px;overflow:hidden;text-overflow:ellipsis}
 .chip button:focus-visible{outline:2px solid var(--accent)}
 .sw{display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--c);margin-right:6px}
 @media (max-width:520px){.filterbar input{min-width:0;flex-basis:100%}}
+/* 자료 기간 칩·막대 클릭 */
+a.per{color:inherit;text-decoration:none}
+a.per:hover{border-color:var(--accent)}
+a.per:hover .pn{color:var(--accent)}
+.drill{cursor:pointer}
+.drill:hover rect:not([fill="transparent"]),.drill:focus rect:not([fill="transparent"]){opacity:.8}
+.drill:focus{outline:none}
+.drill:focus-visible rect[fill="transparent"]{stroke:var(--accent);stroke-width:1.5}

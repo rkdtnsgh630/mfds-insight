@@ -52,18 +52,19 @@ function periodRow(ids) {
     const c = META.coverage && META.coverage[id];
     const range = p.now ? `<b>현재 등록 현황</b>` : c ? `<b>${esc(c[0])} ~ ${esc(c[1])}</b>` : `<b>–</b>`;
     const sub = p.now ? "기간 구분 없음" : [p.basis && p.basis + " 기준", p.note].filter(Boolean).join(", ");
-    return `<span class="per"><span class="pn">${esc(p.n)}</span> ${range}${sub ? ` <span class="ps">${esc(sub)}</span>` : ""}</span>`;
+    return `<a class="per" href="#data/${esc(id)}" title="${esc(p.n)} 데이터 전체 보기"><span class="pn">${esc(p.n)}</span> ${range}${sub ? ` <span class="ps">${esc(sub)}</span>` : ""}</a>`;
   }).filter(Boolean);
   return items.length ? `<div class="periods" aria-label="자료 기간"><span class="pl">자료 기간</span>${items.join("")}<span class="ps">API에서 빠진 기록도 지우지 않고 '공개 종료'로 표시</span></div>` : "";
 }
 function head(title, crumb, srcIds, periodIds) {
-  const src = (srcIds || []).map(id => `<a href="${esc(API(id).url)}" target="_blank" rel="noopener">${esc(API(id).name)}</a>`).join(" · ");
+  const src = (srcIds || []).map(id => `<a href="#data/${esc(id)}">${esc(API(id).name)}</a>`).join(" · ");
   return `<div class="pagehead"><div><div class="crumb">${crumb || "MFDS INSIGHT"}</div><h1>${title}</h1></div>
     <div class="meta"><span>데이터 기준일 <b>${esc(META.as_of)}</b></span>${src ? `<span>출처 <b>${src}</b></span>` : ""}</div></div>`
     + periodRow(periodIds || srcIds || []);
 }
 const srcline = (ids, extra) => {
-  return `<div class="srcline">출처: ${ids.map(id => `<a href="${esc(API(id).url)}" target="_blank" rel="noopener">${esc(API(id).name)}</a>`).join(" · ")}${extra ? " · " + extra : ""}</div>`;
+  // 출처 이름을 누르면 사이트 안의 데이터 표(#data/…)로 이동한다. 공공데이터포털 원본 링크는 그 화면에 둔다
+  return `<div class="srcline">출처: ${ids.map(id => `<a href="#data/${esc(id)}" title="${esc(API(id).name)} 데이터 전체 보기">${esc(API(id).name)}</a>`).join(" · ")}${extra ? " · " + extra : ""}</div>`;
 };
 const panel = (title, body, sub) => `<section class="panel"><div class="ph"><div><h2>${title}</h2>${sub ? `<div class="src">${sub}</div>` : ""}</div></div>${body}</section>`;
 const kpi = (label, value, sub, href) => `<div class="kpi"><div class="l">${label}</div>${href ? `<a class="v" href="${href}">${value}</a>` : `<div class="v">${value}</div>`}<div class="s">${sub || ""}</div></div>`;
@@ -146,9 +147,11 @@ function barSvg(W, items, o) {
     const y = 4 + i * rowH, w = (W - L - R) * d.v / mx;
     const label = d.k.length > maxc ? d.k.slice(0, maxc - 1) + "…" : d.k;
     const text = `<text x="${L - 8}" y="${y + rowH / 2 + 4}" text-anchor="end" style="fill:var(--fg2)">${esc(label)}<title>${esc(d.k)}</title></text>`;
-    g += (d.href ? `<a href="${esc(d.href)}">${text}</a>` : text)
-      + `<rect x="${L}" y="${y + 4}" width="${Math.max(2, w)}" height="${rowH - 8}" rx="3" fill="${o.c || "var(--accent)"}"><title>${esc(d.k)}: ${esc(o.vf ? o.vf(d.v) : fmt(d.v))}</title></rect>`
+    const body = (d.href ? `<a href="${esc(d.href)}">${text}</a>` : text)
+      + `<rect x="${L}" y="${y + 4}" width="${Math.max(2, w)}" height="${rowH - 8}" rx="3" fill="${o.c || "var(--accent)"}"><title>${esc(d.k)}: ${esc(o.vf ? o.vf(d.v) : fmt(d.v))}${d.drill ? " · 클릭하면 품목 목록" : ""}</title></rect>`
       + `<text x="${L + w + 6}" y="${y + rowH / 2 + 4}">${esc(o.vf ? o.vf(d.v) : fmt(d.v))}</text>`;
+    // drill: 클릭하면 해당 품목 목록을 여는 막대 (화면에서 data-drill을 받아 처리)
+    g += d.drill ? `<g class="drill" data-drill="${esc(d.drill)}" role="button" tabindex="0" aria-label="${esc(d.k)} 품목 목록 보기"><rect x="0" y="${y}" width="${W}" height="${rowH}" fill="transparent"/>${body}</g>` : body;
   });
   return `<svg viewBox="0 0 ${W} ${H}" width="100%" height="${H}" role="img" aria-label="${esc(o.label || "막대그래프")}">${g}</svg>`;
 }
@@ -516,10 +519,10 @@ V.stats = async () => {
   </div>
   ${panel("연도별 신규 허가·신고 품목과 취하 등", lineChart(py.x, [{ n: "허가", v: py["허가"], c: "var(--accent)" }, { n: "신고", v: py["신고"], c: "var(--accent2)" }, { n: "취하·만료·취소 (취하일 기준)", v: py.cancel, c: "var(--bad)" }], { label: "연도별 허가와 취하" }) + srcline(["drug_permit"], "허가일자·취하일자 기준"))}
   <div class="grid2">
-    ${panel("유효 품목의 ATC 대분류", barChart(s.atc.map(x => ({ k: x[0] === "미상" ? "ATC 없음" : `${x[0]} ${x[1]}`, v: x[2] }))) + srcline(["drug_permit_detail"]))}
+    ${panel("유효 품목의 ATC 대분류", barChart(s.atc.map(x => ({ k: x[0] === "미상" ? "ATC 없음" : `${x[0]} ${x[1]}`, v: x[2], drill: "atc:" + x[0] }))) + srcline(["drug_permit_detail"], "막대를 누르면 품목 목록"))}
     ${panel("유효 품목의 분류 (상위 15)", barChart(s.ptype.map(x => ({ k: x[0], v: x[1] }))) + srcline(["drug_permit"]))}
-    ${panel("유효 품목 전문/일반", barChart(s.spc.map(x => ({ k: x[0] + "의약품", v: x[1] }))) + srcline(["drug_permit"]))}
-    ${panel("전체 품목 상태", barChart(s.status.map(x => ({ k: x[0], v: x[1] }))) + srcline(["drug_permit"]))}
+    ${panel("유효 품목 전문/일반", barChart(s.spc.map(x => ({ k: x[0] + "의약품", v: x[1], drill: "spc:" + x[0] }))) + srcline(["drug_permit"], "막대를 누르면 품목 목록"))}
+    ${panel("전체 품목 상태", barChart(s.status.map(x => ({ k: x[0], v: x[1], drill: "st:" + x[0] }))) + srcline(["drug_permit"], "막대를 누르면 품목 목록"))}
   </div>`;
   }
   const ATC_NAME = Object.fromEntries(s.atc.map(x => [x[0], x[1]]));
@@ -535,9 +538,9 @@ V.stats = async () => {
     const cnt = (f) => yr.map(y => mine.filter(f(y)).length);
     const active = mine.filter(r => r[6] === "정상" && !r[10].includes("G"));
     const tally = (rows, f) => { const m = {}; rows.forEach(r => { const k = f(r); m[k] = (m[k] || 0) + 1; }); return Object.entries(m).sort((x, y) => y[1] - x[1]); };
-    const atc = tally(active, r => r[9] ? r[9][0] : "미상").map(([k, n]) => ({ k: k === "미상" ? "ATC 없음" : `${k} ${ATC_NAME[k] || ""}`, v: n }));
-    const spc = tally(active, r => r[5] || "미상").map(([k, n]) => ({ k: k === "미상" ? "미상" : k + "의약품", v: n }));
-    const st = tally(mine, r => r[6] || "미상").map(([k, n]) => ({ k, v: n }));
+    const atc = tally(active, r => r[9] ? r[9][0] : "미상").map(([k, n]) => ({ k: k === "미상" ? "ATC 없음" : `${k} ${ATC_NAME[k] || ""}`, v: n, drill: "atc:" + k }));
+    const spc = tally(active, r => r[5] || "미상").map(([k, n]) => ({ k: k === "미상" ? "미상" : k + "의약품", v: n, drill: "spc:" + k }));
+    const st = tally(mine, r => r[6] || "미상").map(([k, n]) => ({ k, v: n, drill: "st:" + k }));
     return `<div class="kpis">
       ${kpi(`${esc(ly)} 생산실적`, cp[li] ? wonM(cp[li]) : "–", `업계 비중 ${p.p[li] ? (cp[li] / p.p[li] * 100).toFixed(2) + "%" : "–"} · ${rankOf(5)}`, "#company/" + b)}
       ${kpi(`${esc(ly)} 수입실적`, cim[li] ? usd(cim[li]) : "–", `업계 비중 ${p.i[li] ? (cim[li] / p.i[li] * 100).toFixed(2) + "%" : "–"} · ${rankOf(6)}`)}
@@ -558,10 +561,32 @@ V.stats = async () => {
       ${panel("품목 분류", `<div class="empty">분류(효능군)는 업계 전체 기준으로만 집계합니다. 이 회사 품목은 <a class="link" href="#company/${esc(b)}">업체 상세</a>에서 볼 수 있습니다.</div>`)}
     </div>`;
   }
+  // 막대 클릭 → 해당 품목 목록 (업계 전체 또는 선택한 회사 기준)
+  async function drill(key) {
+    const i = key.indexOf(":"), type = key.slice(0, i), val = key.slice(i + 1);
+    const di = await load("drugs_index.json");
+    let rows = curBiz ? di.rows.filter(r => r[3] === curBiz) : di.rows;
+    const activeOnly = type !== "st";
+    if (activeOnly) rows = rows.filter(r => r[6] === "정상" && !r[10].includes("G"));
+    const label = type === "atc" ? (val === "미상" ? "ATC 없음" : `ATC ${val} ${ATC_NAME[val] || ""}`) : type === "spc" ? (val === "미상" ? "전문/일반 미상" : val + "의약품") : `상태: ${val}`;
+    rows = rows.filter(r => type === "atc" ? (val === "미상" ? !r[9] : (r[9] || "")[0] === val) : type === "spc" ? ((r[5] || "미상") === val) : ((r[6] || "미상") === val));
+    const who = curBiz ? (coName.get(curBiz) || fmtBiz(curBiz)) : "업계 전체";
+    const t = table({ rows, sort: "permit", csv: `${who}_${label}`, ph: "품목명, 성분, 업체", text: r => [r[1], r[7], r[8], r[2], r[0]].join(" "),
+      cols: [{ k: "name", t: "품목명", v: r => r[1], h: r => linkDrug(r[0], r[1]) }, ...(curBiz ? [] : [{ k: "e", t: "업체", v: r => r[2], h: r => linkCo(r[3], r[2]) }]),
+        { k: "ingr", t: "주성분", v: r => r[7] || r[8], clip: 1 }, { k: "atc", t: "ATC", v: r => r[9] }, { k: "spc", t: "구분", v: r => r[5] }, { k: "permit", t: "허가일", v: r => r[4] }, { k: "st", t: "상태", v: r => r[6], h: r => statusTag(r[6]) }] });
+    const box = $("#st-drill");
+    box.innerHTML = panel(`${esc(who)} · ${esc(label)} 품목 (${fmt(rows.length)})`, t.html, activeOnly ? "유효 품목(상태 정상) 기준" : "전체 품목 기준")
+      .replace('<div class="ph">', '<div class="ph"><button class="btn" id="st-drill-close" type="button" style="order:2">닫기</button>');
+    t.bind();
+    $("#st-drill-close").addEventListener("click", () => { box.innerHTML = ""; });
+    box.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+  let curBiz = "";
   async function renderMain(b) {
+    curBiz = b;
     const box = $("#st-main");
     box.innerHTML = b ? '<div class="loading">불러오는 중…</div>' : "";
-    box.innerHTML = b ? await companyHtml(b) : industryHtml();
+    box.innerHTML = (b ? await companyHtml(b) : industryHtml()) + '<div id="st-drill"></div>';
     $("#st-info").textContent = b ? `${coName.get(b) || fmtBiz(b)} 기준` : "업계 전체 기준";
     drawCharts(box);
   }
@@ -606,6 +631,9 @@ V.stats = async () => {
       stq.addEventListener("change", () => { const m = stq.value.match(/\((\d{3}-\d{2}-\d{5})\)\s*$/); if (m) renderMain(m[1].replace(/-/g, "")); else if (!stq.value.trim()) renderMain(""); else toast("목록에서 회사를 골라 주세요."); });
       $("#st-clear").addEventListener("click", () => { stq.value = ""; renderMain(""); });
       renderMain("");
+      const sm = $("#st-main");
+      sm.addEventListener("click", e => { const g = e.target.closest("[data-drill]"); if (g) drill(g.dataset.drill); });
+      sm.addEventListener("keydown", e => { const g = e.target.closest("[data-drill]"); if (g && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); drill(g.dataset.drill); } });
       $("#cmp-q").addEventListener("change", () => { if (/\(\d{3}-\d{2}-\d{5}\)\s*$/.test($("#cmp-q").value)) addCo(); });
       renderCmp();
     },
@@ -762,9 +790,76 @@ V.changes = async () => {
   return { html, bind: c.rows.length ? t.bind : null };
 };
 
+// 출처 데이터 보기: 출처 이름을 누르면 그 API에서 받은 실제 기록을 표로 보여 준다
+V.data = async id => {
+  const a = API(id);
+  if (!a || !META.apis.some(x => x.id === id)) return { html: head("데이터를 찾을 수 없습니다", "데이터") + empty() };
+  const kept = a.kept != null ? a.kept : a.count;
+  const top = head(esc(a.name), `<a class="link" href="#about">데이터 출처·기준</a> / 데이터 보기`, [], [id]) + `
+  <div class="kpis">
+    ${kpi("현재 API 제공", fmt(a.count), "가장 최근 수집에서 조회된 건수")}
+    ${kpi("사이트 보관", fmt(kept), kept > a.count ? `API에서 빠진 ${fmt(kept - a.count)}건 포함` : "API에서 빠진 기록 없음")}
+    ${kpi("최근 수집", esc((a.last || "–").slice(0, 10)), "UTC 기준")}
+  </div>
+  <div class="notice small">식품의약품안전처가 공공데이터포털 API로 제공한 기록을 그대로 보여 줍니다. 원본 API 안내: <a class="link" href="${esc(a.url)}" target="_blank" rel="noopener">공공데이터포털 ↗</a></div>`;
+  const T = (cfg, extra) => { const t = table(cfg); return { html: top + panel(`${esc(a.name)} (${fmt(cfg.rows.length)}건)`, t.html) + (extra || ""), bind: t.bind }; };
+  const co = (bi, ni) => ({ k: "e", t: "업체", v: r => r[ni], h: r => linkCo(r[bi], r[ni]) });
+  const dr = (si, ni) => ({ k: "p", t: "제품", v: r => r[ni], h: r => linkDrug(r[si], r[ni]) });
+  if (["recall_drug", "supply_suspend", "supply_shortage", "safety_letter"].includes(id)) {
+    const s = await load("supply.json");
+    if (id === "recall_drug") return T({ rows: s.recalls, sort: "date", csv: a.name, ph: "제품명, 업체명, 사유", text: r => r.join(" "), filters: [stFilter(7)],
+      cols: [{ k: "date", t: "회수명령일", v: r => r[0] }, dr(4, 1), co(3, 2), { k: "w", t: "사유", v: r => r[5], wrap: 1 }, { k: "f", t: "강제 여부", v: r => r[6] === "Y" ? "강제" : "강제 아님" }, stCol(7, 8)] });
+    if (id === "supply_suspend") return T({ rows: s.suspends, sort: "date", csv: a.name, ph: "제품명, 업체명, 사유", text: r => r.join(" "), filters: [stFilter(10)],
+      cols: [{ k: "date", t: "신고일", v: r => r[0] }, dr(4, 1), co(3, 2), { k: "f", t: "구분", v: r => r[5] }, { k: "sd", t: "중단(예정)일", v: r => r[6] }, { k: "w", t: "사유", v: r => r[7], wrap: 1 }, { k: "s", t: "처리상태", v: r => r[8] }, { k: "q", t: "재고량", v: r => r[9] }, stCol(10, 11)] },
+      `<div class="srcline">공개 비동의로 싣지 않은 ${fmt(META.hidden_suspend || 0)}건 제외</div>`);
+    if (id === "supply_shortage") return T({ rows: s.shortages, sort: "date", csv: a.name, ph: "제품명, 업체명, 사유", text: r => r.join(" "), filters: [stFilter(9)],
+      cols: [{ k: "date", t: "신고일", v: r => r[0] }, dr(4, 1), co(3, 2), { k: "w", t: "부족 사유", v: r => r[5], wrap: 1 }, { k: "pl", t: "공급 예정일", v: r => r[6] }, { k: "s", t: "처리상태", v: r => r[7] }, { k: "alt", t: "대체 가능 여부·조치", v: r => r[8], wrap: 1 }, stCol(9, 10)] });
+    return T({ rows: s.letters, sort: "date", csv: a.name, ph: "제목, 내용", text: r => r.join(" "), filters: [stFilter(6)],
+      cols: [{ k: "date", t: "공고일", v: r => r[0] }, { k: "t", t: "제목", v: r => r[1], h: r => r[3] ? `<a class="link" href="${esc(r[3])}" target="_blank" rel="noopener">${esc(r[1])}</a>` : esc(r[1]), wrap: 1 }, { k: "c", t: "내용", v: r => r[4], wrap: 1 }, { k: "d", t: "담당 부서", v: r => r[2] }, stCol(6, 7)] });
+  }
+  if (id === "admin_action" || id === "gmp") {
+    const g = await load("regulation.json");
+    if (id === "admin_action") return T({ rows: g.admins, sort: "date", csv: a.name, ph: "업체명, 품목명, 처분 내용", text: r => r.join(" "), filters: [{ label: "유형", get: r => r[8], opts: g.admin_type.map(x => x[0]) }, stFilter(10)],
+      cols: [{ k: "date", t: "처분확정일", v: r => r[0] }, co(2, 1), { k: "ty", t: "유형", v: r => r[8] }, { k: "d", t: "처분 내용", v: r => r[5], wrap: 1 }, { k: "law", t: "위반 법령", v: r => r[6], wrap: 1 }, { k: "it", t: "품목", v: r => r[3], wrap: 1 }, { k: "rls", t: "공개 종료(예정)일", v: r => r[7] }, stCol(10, 11)] });
+    return T({ rows: g.gmp, sort: "valid", csv: a.name, ph: "업체명, 공장 주소, 제형", text: r => r.join(" "), filters: [{ label: "구분", get: r => r[2], opts: g.gmp_kind.map(x => x[0]) }, stFilter(6)],
+      cols: [co(1, 0), { k: "k", t: "구분", v: r => r[2] }, { k: "g", t: "제형군", v: r => r[3], wrap: 1 }, { k: "a", t: "공장 소재지", v: r => r[4] }, { k: "valid", t: "유효기간", v: r => r[5] }, stCol(6)] });
+  }
+  if (id === "overseas_mfr") {
+    const o = await load("overseas.json");
+    return T({ rows: o.rows, sort: "country", dir: 1, csv: a.name, ph: "제조소명, 국가, 국내 업체", text: r => r.join(" "), filters: [stFilter(6)],
+      cols: [{ k: "m", t: "해외 제조소", v: r => r[2] }, { k: "country", t: "국가", v: r => r[3] }, { k: "ad", t: "주소", v: r => r[4], wrap: 1 }, co(1, 0), { k: "no", t: "제조소 번호", v: r => r[5] }, stCol(6)] });
+  }
+  if (id === "drug_permit" || id === "drug_permit_detail") {
+    const d = await load("drugs_index.json");
+    return T({ rows: d.rows, sort: "permit", csv: a.name, ph: "품목명, 업체명, 성분명, 품목기준코드, ATC", text: r => [r[1], r[2], r[7], r[8], r[0], r[9]].join(" "),
+      filters: [{ label: "상태", get: r => r[6], opts: [...new Set(d.rows.map(r => r[6]))] }, { label: "전문/일반", get: r => r[5], opts: ["전문", "일반"] }],
+      cols: [{ k: "seq", t: "품목기준코드", v: r => r[0] }, { k: "name", t: "품목명", v: r => r[1], h: r => linkDrug(r[0], r[1]) + (r[10].includes("G") ? '<span class="flag r">공개 종료</span>' : "") }, co(3, 2),
+        { k: "permit", t: "허가일", v: r => r[4] }, { k: "kind", t: "허가/신고", v: r => r[11] }, { k: "spc", t: "구분", v: r => r[5] }, { k: "atc", t: "ATC", v: r => r[9] }, { k: "st", t: "상태", v: r => r[6], h: r => statusTag(r[6]) }, { k: "cancel", t: "취하일", v: r => r[12] }] },
+      id === "drug_permit_detail" ? `<div class="srcline">허가 상세(저장방법·원료·변경 이력 등)는 품목명을 누르면 품목 상세에서 볼 수 있습니다.</div>` : "");
+  }
+  if (id === "company_list") {
+    const c = await load("companies_index.json");
+    return T({ rows: c.rows, sort: "total", csv: a.name, ph: "업체명, 사업자번호, 지역, 업종", text: r => [r[1], r[0], fmtBiz(r[0]), r[2], r[13], r[14]].join(" "),
+      cols: [co(0, 1), { k: "b", t: "사업자번호", v: r => fmtBiz(r[0]) }, { k: "ind", t: "업종", v: r => r[13], wrap: 1 }, { k: "rg", t: "소재지 (업체허가)", v: r => r[2] }, { k: "total", t: "허가 품목", v: r => r[4], n: 1 }] },
+      `<div class="srcline">업체별 허가 상세(허가일·허가번호)는 업체명을 누르면 업체 상세에서 볼 수 있습니다.</div>`);
+  }
+  if (id === "production_import") {
+    const s = await load("stats.json"), p = s.prod_year, c = await load("companies_index.json");
+    const yrs = p.x.map((y, i) => [y, p.p[i], p.np[i], p.i[i], p.ni[i]]);
+    const t = table({ rows: c.rows.filter(r => r[5] || r[6]), sort: "prod", csv: `${a.name}_업체별_${c.latest_year}`, ph: "업체명", text: r => r[1],
+      cols: [co(0, 1), { k: "prod", t: `${c.latest_year} 생산 (백만원)`, v: r => r[5], n: 1, h: r => r[5] ? fmt(r[5]) : "–" }, { k: "imp", t: `${c.latest_year} 수입 (달러)`, v: r => r[6], n: 1, h: r => r[6] ? fmt(r[6]) : "–" }] });
+    return {
+      html: top + panel("연도별 합계", `<div class="tbl-wrap"><table><thead><tr><th>연도</th><th class="n">생산 (백만원)</th><th class="n">생산 행 수</th><th class="n">수입 (달러)</th><th class="n">수입 행 수</th></tr></thead><tbody>${yrs.map(r => `<tr><td>${esc(r[0])}</td><td class="n">${fmt(r[1])}</td><td class="n">${fmt(r[2])}</td><td class="n">${fmt(r[3])}</td><td class="n">${fmt(r[4])}</td></tr>`).join("")}</tbody></table></div>`)
+        + panel(`${esc(c.latest_year)}년 업체별 실적`, t.html + `<div class="srcline">품목별 연도별 실적은 품목 상세, 업 일련번호별 실적은 업체 상세에서 볼 수 있습니다.</div>`),
+      bind: t.bind,
+    };
+  }
+  return { html: top + empty("이 데이터는 표로 따로 보여 주지 않습니다.") };
+};
+
 V.about = async () => {
   const cv = id => { const c = META.coverage && META.coverage[id]; return c ? `${esc(c[0])} ~ ${esc(c[1])}` : '<span class="muted">–</span>'; };
-  const rows = META.apis.map(a => `<tr><td><a class="link" href="${esc(a.url)}" target="_blank" rel="noopener">${esc(a.name)}</a></td><td class="n">${fmt(a.count)}</td><td>${cv(a.id)}</td><td>${esc((a.last || "").replace("T", " ").replace("Z", " UTC"))}</td></tr>`).join("");
+  const rows = META.apis.map(a => `<tr><td><a class="link" href="#data/${esc(a.id)}">${esc(a.name)}</a> <a class="muted small" href="${esc(a.url)}" target="_blank" rel="noopener">원본 ↗</a></td><td class="n">${fmt(a.count)}</td><td>${cv(a.id)}</td><td>${esc((a.last || "").replace("T", " ").replace("Z", " UTC"))}</td></tr>`).join("");
   const html = head("데이터 출처·기준", "안내", []) + `
   ${panel("수집 데이터", `<div class="tbl-wrap"><table><thead><tr><th>데이터 (공공데이터포털)</th><th class="n">현재 건수</th><th>자료 기간 (날짜 필드 기준)</th><th>최근 수집</th></tr></thead><tbody>${rows}</tbody></table></div>`)}
   ${panel("표시 기준", `<ul class="small" style="margin:0;padding-left:18px;line-height:1.9">
@@ -800,7 +895,7 @@ async function route() {
   const h = decodeURIComponent((location.hash || "#dashboard").slice(1));
   const [v, ...rest] = h.split("/"), arg = rest.join("/");
   const view = V[v] ? v : "dashboard";
-  const navKey = { company: "companies", drug: "drugs", search: "" }[view] ?? view;
+  const navKey = { company: "companies", drug: "drugs", search: "", data: "about" }[view] ?? view;
   document.querySelectorAll("#nav a").forEach(a => a.classList.toggle("on", a.dataset.v === navKey));
   const el = $("#view");
   CHARTS.clear();
