@@ -305,6 +305,7 @@ V.company = async biz => {
   const years = Object.keys(c.prod);
   const active = c.items.filter(i => i[4] === "정상").length;
   const ly = years[years.length - 1], lp = ly ? c.prod[ly] : null;
+  const sites = Object.entries(c.prod_sites || {}).sort((a, b) => ((b[1].years[ly] || {}).p || 0) - ((a[1].years[ly] || {}).p || 0));
   const items = table({
     rows: c.items, sort: "date", csv: `${c.name}_품목`, ph: "품목명, 품목기준코드", per: 10,
     text: r => r[1] + " " + r[0],
@@ -347,9 +348,12 @@ V.company = async biz => {
     ${kpi("공급중단 · 부족", `${fmt(c.suspend.length)} · ${fmt(c.shortage.length)}`, "신고 기록")}
   </div>
   <div class="grid2">
-    ${panel("연도별 생산실적 (백만원)", colChart(years, years.map(y => c.prod[y].p || 0), { vf: wonM, label: "연도별 생산실적" }) + srcline(["production_import"], "금액 단위 백만원 · 공장 구분 없는 품목·업체 단위 자료"))}
-    ${panel("연도별 수입실적 (달러)", colChart(years, years.map(y => c.prod[y].i || 0), { c: "var(--accent2)", vf: usd, tf: v => v >= 1e8 ? (v / 1e8) + "억" : v >= 1e4 ? fmt(v / 1e4) + "만" : fmt(v), label: "연도별 수입실적" }) + srcline(["production_import"], "금액 단위 달러 · 공장 구분 없는 품목·업체 단위 자료"))}
+    ${panel("연도별 생산실적 (백만원)", colChart(years, years.map(y => c.prod[y].p || 0), { vf: wonM, label: "연도별 생산실적" }) + srcline(["production_import"], "금액 단위 백만원 · 업(허가)별 보고를 합친 값, 공장 주소와의 연결 정보는 없음"))}
+    ${panel("연도별 수입실적 (달러)", colChart(years, years.map(y => c.prod[y].i || 0), { c: "var(--accent2)", vf: usd, tf: v => v >= 1e8 ? (v / 1e8) + "억" : v >= 1e4 ? fmt(v / 1e4) + "만" : fmt(v), label: "연도별 수입실적" }) + srcline(["production_import"], "금액 단위 달러 · 업(허가)별 보고를 합친 값, 공장 주소와의 연결 정보는 없음"))}
   </div>
+  ${sites.length > 1 ? panel(`업 일련번호별 생산·수입실적 (${sites.length}개)`, `<div class="tbl-wrap"><table><thead><tr><th>업 일련번호</th><th>보고 상호</th>${years.map(y => `<th class="n">${esc(y)} 생산</th>`).join("")}<th class="n">${esc(ly || "")} 수입</th></tr></thead><tbody>${sites.map(([es, s]) =>
+      `<tr><td>${esc(es)}</td><td>${esc(s.name)}</td>${years.map(y => `<td class="n">${s.years[y] && s.years[y].p ? wonM(s.years[y].p) : "–"}</td>`).join("")}<td class="n">${s.years[ly] && s.years[ly].i ? usd(s.years[ly].i) : "–"}</td></tr>`).join("")}</tbody></table></div>`
+    + `<div class="srcline">생산·수입실적은 허가(업)마다 따로 보고됩니다. 업 일련번호가 어느 공장(주소)인지 연결하는 정보는 공공데이터에 없어 공장 이름으로 표시하지 않습니다.</div>`, "같은 사업자번호 안의 허가(업)별 보고") : ""}
   ${panel(`허가 품목 (${fmt(c.items.length)})`, items.html)}
   <div class="grid2">
     ${panel(`행정처분 (${c.admin.length})`, tl(c.admin, x => tr(x[0], `<span class="pill p-mute">${esc(x[2])}</span>`, `${esc(x[3])}${x[1] ? `<div class="muted small">${esc(x[1])}</div>` : ""}`)) + srcline(["admin_action"]))}
@@ -419,7 +423,10 @@ V.drug = async seq => {
     `<tr><td class="wrap">${esc(o["성분명"])}</td><td class="n">${esc(o["분량"] || "")}</td><td>${esc(o["단위"] || "")}</td><td>${esc(o["규격"] || "")}</td><td class="wrap muted">${esc((o["성분정보"] || "").replace(/…$/, ""))}</td></tr>`).join("")}</tbody></table></div>`
     + (matCut ? `<div class="srcline">일부 성분만 표시됩니다. 전체 원료는 아래 '의약품안전나라에서 보기'에서 확인하세요.</div>` : "") : "";
   const field = (t, v) => `<div><dt>${t}</dt><dd>${v || '<span class="muted">–</span>'}</dd></div>`;
-  const prodRows = years.flatMap(y => prod[y].map(p => [y, p[0], p[1]]));
+  // [연도, 구분, 금액, 보고업체명, 사업자번호, 업일련번호] (이전 형식 데이터는 뒤 3개가 없음)
+  const prodRows = years.flatMap(y => prod[y].map(p => [y, p[0], p[1], p[2] || "", p[3] || "", p[4] || ""]));
+  const multiRep = prodRows.some(p => p[5]) && years.some(y => prod[y].length > 1 || new Set(prod[y].map(p => (p[3] || "") + "|" + (p[4] || ""))).size > 1)
+    || new Set(prodRows.filter(p => p[4]).map(p => p[4])).size > 1;
   const sumBy = part => years.map(y => prod[y].filter(p => p[0] === part).reduce((s, p) => s + p[1], 0));
   const pP = sumBy("생산"), pI = sumBy("수입");
   const html = head(esc(r[1]) + (r[10].includes("N") ? ' <span class="flag">신약</span>' : "") + (r[10].includes("R") ? ' <span class="flag r">희귀</span>' : ""),
@@ -456,7 +463,12 @@ V.drug = async seq => {
     ${panel(`공급부족 신고 (${(rel.shortage || []).length})`, tl(rel.shortage, x => tr(x[0], `<span class="pill p-warn">부족</span>`, `${esc(x[3])}<div class="muted small">${esc(x[1])}</div>`)) + srcline(["supply_shortage"]))}
     ${panel(`행정처분 (${(rel.admin || []).length})`, tl(rel.admin, x => tr(x[0], `<span class="pill p-mute">${esc(x[1])}</span>`, esc(x[2]))) + srcline(["admin_action"]))}
   </div>
-  ${prodRows.length ? `<div class="grid2">${pP.some(v => v) ? panel("연도별 생산실적", colChart(years, pP, { vf: wonM, label: "연도별 생산실적" }) + srcline(["production_import"], "금액 단위 백만원 · 공장 구분 없는 품목·업체 단위 자료")) : ""}${pI.some(v => v) ? panel("연도별 수입실적", colChart(years, pI, { c: "var(--accent2)", vf: usd, tf: v => v >= 1e8 ? (v / 1e8) + "억" : v >= 1e4 ? fmt(v / 1e4) + "만" : fmt(v), label: "연도별 수입실적" }) + srcline(["production_import"], "금액 단위 달러 · 공장 구분 없는 품목·업체 단위 자료")) : ""}</div>` : panel("연도별 생산·수입실적", empty("생산·수입실적 기록이 없습니다."))}`;
+  ${prodRows.length ? `<div class="grid2">${pP.some(v => v) ? panel("연도별 생산실적", colChart(years, pP, { vf: wonM, label: "연도별 생산실적" }) + srcline(["production_import"], "금액 단위 백만원 · 업(허가)별 보고를 합친 값, 공장 주소와의 연결 정보는 없음")) : ""}${pI.some(v => v) ? panel("연도별 수입실적", colChart(years, pI, { c: "var(--accent2)", vf: usd, tf: v => v >= 1e8 ? (v / 1e8) + "억" : v >= 1e4 ? fmt(v / 1e4) + "만" : fmt(v), label: "연도별 수입실적" }) + srcline(["production_import"], "금액 단위 달러 · 업(허가)별 보고를 합친 값, 공장 주소와의 연결 정보는 없음")) : ""}</div>` : panel("연도별 생산·수입실적", empty("생산·수입실적 기록이 없습니다."))}
+  ${multiRep ? panel("보고 업체별 생산·수입실적", `<div class="tbl-wrap"><table><thead><tr><th>연도</th><th>구분</th><th>보고 업체</th><th>업 일련번호</th><th class="n">금액</th><th>비고</th></tr></thead><tbody>${prodRows.slice().reverse().map(p => {
+      const same = prodRows.filter(q => q[0] === p[0] && q[1] === p[1]);
+      const dupAmt = same.length > 1 && same.every(q => q[2] === p[2]) && p[2] > 0;
+      return `<tr><td>${esc(p[0])}</td><td>${esc(p[1])}</td><td>${p[4] ? linkCo(p[4], p[3] || fmtBiz(p[4])) : esc(p[3] || "–")}</td><td>${esc(p[5] || "–")}</td><td class="n">${p[1] === "생산" ? wonM(p[2]) : usd(p[2])}</td><td class="muted small">${dupAmt ? "같은 금액이 두 곳에서 보고됨 (중복 가능)" : same.length > 1 ? "같은 해 여러 곳 보고 · 합산" : ""}</td></tr>`;
+    }).join("")}</tbody></table></div>`, "한 품목을 여러 업체 또는 같은 업체의 여러 허가(업)가 따로 보고한 경우. 위 차트는 이를 합친 값") : ""}`;
   return { html };
 };
 
@@ -469,7 +481,7 @@ V.stats = async () => {
   const tp = s.top_prod.map(x => ({ k: x[1] || fmtBiz(x[0]), v: x[2], href: "#company/" + x[0] }));
   const ti = s.top_import.map(x => ({ k: x[1] || fmtBiz(x[0]), v: x[2], href: "#company/" + x[0] }));
   const html = head("산업 통계", "분석", ["production_import", "drug_permit", "drug_permit_detail"]) + `
-  <div class="notice small">생산·수입실적은 연간 자료입니다. 생산은 <b>백만원</b>, 수입은 <b>달러</b> 단위(공식 명세)라 합치지 않고 따로 보여 줍니다. 집계 건수는 API가 돌려준 행 수이며, 2020년은 다른 해보다 행이 많이 제공됩니다(원자료 그대로).</div>
+  <div class="notice small">생산·수입실적은 연간 자료입니다. 생산은 <b>백만원</b>, 수입은 <b>달러</b> 단위(공식 명세)라 합치지 않고 따로 보여 줍니다. 집계 건수는 API가 돌려준 행 수이며, 2020년은 다른 해보다 행이 많이 제공됩니다(원자료 그대로). 한 품목을 여러 업체·허가(업)가 따로 보고한 경우는 모두 합산합니다.${s.prod_dup && s.prod_dup.groups ? ` 이 중 같은 품목·연도에 <b>같은 금액</b>이 두 곳 이상에서 보고된 ${fmt(s.prod_dup.groups)}건(생산 ${wonM(s.prod_dup.p)}, 수입 ${usd(s.prod_dup.i)})은 중복일 수 있으나 판단 근거가 없어 그대로 합산했습니다.` : ""}</div>
   <section class="panel" id="cmp">
     <div class="ph"><div><h2>업체 비교</h2><div class="src">업계 전체 대비 연도별 생산·수입실적과 비중 · 최대 5곳 · 처음에는 ${esc(s.latest_year)}년 생산 상위 3곳</div></div></div>
     <div class="filters">

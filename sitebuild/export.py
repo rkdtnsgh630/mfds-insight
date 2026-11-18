@@ -219,23 +219,37 @@ class Exporter:
         letters.sort(key=lambda x: x[0], reverse=True)
 
         # 생산·수입 (생산=백만원, 수입=달러)
-        prod_item = defaultdict(dict)   # seq -> year -> [part, amt]
+        # 같은 품목·연도·구분이라도 보고 주체(업 일련번호 ENTP_SEQ·사업자번호)가 다르면 별개 행이다
+        # (2026-11-18 점검: 1,535묶음 중 업번호·업체가 다른 경우가 대부분, 금액까지 같은 것은 43묶음).
+        prod_item = defaultdict(dict)   # seq -> year -> [[part, amt, 업체명, 사업자번호, 업일련번호], ...]
         prod_biz = defaultdict(lambda: defaultdict(lambda: {"p": 0.0, "i": 0.0, "np": 0, "ni": 0}))
+        prod_site = defaultdict(lambda: defaultdict(lambda: defaultdict(lambda: {"p": 0.0, "i": 0.0})))  # biz -> 업번호 -> year
+        site_name = defaultdict(Counter)
         prod_year = defaultdict(lambda: {"p": 0.0, "i": 0.0, "np": 0, "ni": 0})
         names_from_prod = defaultdict(Counter)
+        same_amt = defaultdict(list)    # (seq, year, part) -> [amt...] (같은 금액 중복 가능성 집계용)
         for r in P["production_import"]:
             year, part, amt = v(r, "DATE_YEAR"), v(r, "RESULT_PART"), num(v(r, "AMT"))
             if not year or amt is None or part not in ("생산", "수입"):
                 continue
             k, n = ("p", "np") if part == "생산" else ("i", "ni")
             b = biz(v(r, "BIZRNO"))
+            es = v(r, "ENTP_SEQ")
             prod_year[year][k] += amt
             prod_year[year][n] += 1
             if b:
                 prod_biz[b][year][k] += amt
                 prod_biz[b][year][n] += 1
                 names_from_prod[b][v(r, "ENTP_NAME")] += 1
-            prod_item[S(r)].setdefault(year, []).append([part, round(amt, 3)])
+                if es:
+                    prod_site[b][es][year][k] += amt
+                    site_name[(b, es)][v(r, "ENTP_NAME")] += 1
+            prod_item[S(r)].setdefault(year, []).append([part, round(amt, 3), v(r, "ENTP_NAME"), b, es])
+            same_amt[(S(r), year, part)].append(round(amt, 3))
+        dup_same = [(key, a[0]) for key, a in same_amt.items() if len(a) > 1 and len(set(a)) == 1 and a[0] > 0]
+        prod_dup = {"groups": len(dup_same),
+                    "p": round(sum(x for (s_, y_, pt), x in dup_same if pt == "생산"), 1),
+                    "i": round(sum(x for (s_, y_, pt), x in dup_same if pt == "수입"))}
 
         gmps = []
         for r in P["gmp"]:
@@ -337,6 +351,10 @@ class Exporter:
                          for y, d in sorted(py.items())},
                 **{k: bz.get(k, [])[:300] for k in ("gmp", "admin", "recall", "suspend", "shortage")},
                 "overseas": bz.get("overseas", [])[:300], "overseas_total": len(bz.get("overseas", [])),
+                # 업 일련번호(허가별)마다 생산·수입. 2개 이상일 때만 의미가 있다
+                "prod_sites": {es: {"name": site_name[(b, es)].most_common(1)[0][0] if site_name[(b, es)] else "",
+                                    "years": {y: {"p": round(d["p"], 3), "i": round(d["i"], 3)} for y, d in sorted(ys.items())}}
+                               for es, ys in prod_site.get(b, {}).items()} if len(prod_site.get(b, {})) > 1 else {},
             }
 
         # ---------- 통계 ----------
@@ -451,7 +469,7 @@ class Exporter:
                             "신고": [permit_year_kind[y].get("신고", 0) for y in yr_range],
                             "cancel": [cancel_year.get(y, 0) for y in yr_range]},
             "spc": spc.most_common(), "atc": [[k, ATC1.get(k, "미상"), n] for k, n in atc.most_common()],
-            "ptype": ptype.most_common(15), "latest_year": latest_year,
+            "ptype": ptype.most_common(15), "latest_year": latest_year, "prod_dup": prod_dup,
             "status": Counter(row[6] for row in drugs).most_common(),
         }
         regulation = {

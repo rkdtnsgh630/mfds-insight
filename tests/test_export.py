@@ -61,7 +61,11 @@ class ExportTests(unittest.TestCase):
         put(con, run_id, "company_list", {"BIZRNO": "1234567890", "ENTRPS": "가제약주식회사", "INDUTY": "의약외품",
                                            "PRMISN_DT": "19900101", "ADRES": "경기도 이천시", "PRMISN_NO": "2"}, "h:2")
         put(con, run_id, "production_import", {"ITEM_SEQ": "202600001", "DATE_YEAR": "2025", "RESULT_PART": "생산",
-                                                "AMT": "100.5", "BIZRNO": "1234567890", "ENTP_NAME": "가제약(주)"}, "a")
+                                                "AMT": "100.5", "BIZRNO": "1234567890", "ENTP_NAME": "가제약(주)",
+                                                "ENTP_SEQ": "E1"}, "a")
+        put(con, run_id, "production_import", {"ITEM_SEQ": "202600001", "DATE_YEAR": "2025", "RESULT_PART": "생산",
+                                                "AMT": "100.5", "BIZRNO": "1234567890", "ENTP_NAME": "가제약(주)",
+                                                "ENTP_SEQ": "E2"}, "a#2")
         put(con, run_id, "production_import", {"ITEM_SEQ": "199900002", "DATE_YEAR": "2025", "RESULT_PART": "수입",
                                                 "AMT": "2000", "BIZRNO": "1234567890", "ENTP_NAME": "가제약(주)"}, "b")
         put(con, run_id, "recall_drug", {"ITEM_SEQ": "202600001", "PRDUCT": "가정", "ENTRPS": "가제약(주)",
@@ -98,24 +102,28 @@ class ExportTests(unittest.TestCase):
         comp = load("companies_index.json")["rows"]
         self.assertEqual(len(comp), 1)
         self.assertEqual(comp[0][1], "가제약주식회사")  # 업체허가 목록 상호 우선
-        self.assertEqual((comp[0][5], comp[0][6]), (100.5, 2000))  # 생산 백만원·수입 달러 따로
+        self.assertEqual((comp[0][5], comp[0][6]), (201.0, 2000))  # 생산 백만원·수입 달러 따로
         self.assertEqual(comp[0][2], "충청북도 음성군 외 1곳")  # 허가별 주소를 모두 반영
         self.assertEqual(comp[0][14], "충청남도 당진시 · 경기도 이천시")  # GMP 공장 소재지
         det = load("companies/90.json")["1234567890"]
         self.assertEqual(det["regions"], ["충청북도 음성군", "경기도 이천시"])
         self.assertEqual(det["licenses"][1][3], "경기도 이천시")
         self.assertEqual(len(det["items"]), 2)
-        self.assertEqual(det["prod"]["2025"]["p"], 100.5)
+        self.assertEqual(det["prod"]["2025"]["p"], 201.0)
+        self.assertEqual(sorted(det["prod_sites"]), ["E1", "E2"])  # 업 일련번호별로 나눔
+        self.assertEqual(det["prod_sites"]["E1"]["years"]["2025"]["p"], 100.5)
         drug = load("drugs/01.json")["202600001"]
         self.assertEqual(drug["rel"]["recall"][0][0], "2026-11-15")
         self.assertEqual(len(drug["rel"]["admin"]), 1)
         self.assertEqual(drug["doc_ee"], "https://nedrug.mfds.go.kr/x")
         self.assertEqual(drug["row"][:2], ["202600001", "가정"])
+        self.assertEqual(sorted(x[4] for x in drug["prod"]["2025"]), ["E1", "E2"])
         idx = load("drugs_index.json")
         row = dict(zip(idx["cols"], idx["rows"][0] if idx["rows"][0][0] == "202600001" else idx["rows"][1]))
         self.assertEqual((row["atc"], row["flags"], row["ingr_kr"]), ("N02BE01", "N", "아세트아미노펜"))
         stats = load("stats.json")
-        self.assertEqual(stats["prod_year"]["p"], [100.5])
+        self.assertEqual(stats["prod_year"]["p"], [201.0])
+        self.assertEqual(stats["prod_dup"], {"groups": 1, "p": 100.5, "i": 0})  # 같은 금액 2건
         self.assertEqual(stats["prod_year"]["i"], [2000])
 
 
