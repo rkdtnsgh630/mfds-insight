@@ -183,11 +183,13 @@ function choropleth(W, feats, counts, sel) {
   let g = `<rect width="${W}" height="${H}" fill="var(--bg)"/>`;
   feats.forEach(f => {
     if (f.name === "Antarctica") return;
-    const d = f.polys.map(poly => poly.map(r => "M" + r.map(p => x(p[0]).toFixed(1) + "," + y(p[1]).toFixed(1)).join("L") + "Z").join("")).join("");
+    // 날짜변경선(경도 ±180°)을 넘는 구간은 선을 잇지 않는다 (러시아·피지 등이 지도를 가로지르는 줄 방지)
+    const ringPath = r => { let s = "", broken = false; r.forEach((p, i) => { const jump = i > 0 && Math.abs(p[0] - r[i - 1][0]) > 180; if (jump) broken = true; s += (i === 0 || jump ? "M" : "L") + x(p[0]).toFixed(1) + "," + y(p[1]).toFixed(1); }); return s + (broken ? "" : "Z"); };
+    const d = f.polys.map(poly => poly.map(ringPath).join("")).join("");
     const c = counts[f.id] || null, b = c ? binOf(c.n) : -1;
     const fill = b < 0 ? "var(--mute-bg)" : "var(--accent)";
     const op = b < 0 ? 1 : [0.18, 0.34, 0.52, 0.72, 0.95][b];
-    g += `<path d="${d}" fill="${fill}" fill-opacity="${op}" stroke="${sel === f.id ? "var(--fg)" : "var(--line2)"}" stroke-width="${sel === f.id ? 1.6 : 0.5}"${c ? ` data-cty="${esc(c.ko)}" style="cursor:pointer"` : ""}><title>${esc(c ? c.ko : f.name)}${c ? `: 제조소 ${fmt(c.n)}곳` : ": 0곳"}</title></path>`;
+    g += `<path d="${d}" fill="${fill}" fill-opacity="${op}" stroke="${sel && sel === f.id ? "var(--fg)" : "var(--line2)"}" stroke-width="${sel && sel === f.id ? 1.6 : 0.5}"${c ? ` data-cty="${esc(c.ko)}" style="cursor:pointer"` : ""}><title>${esc(c ? c.ko : f.name)}${c ? `: 제조소 ${fmt(c.n)}곳` : ": 0곳"}</title></path>`;
   });
   return `<svg viewBox="0 0 ${W} ${H}" width="100%" height="${H}" role="img" aria-label="국가별 해외 제조소 수 지도">${g}</svg>`;
 }
@@ -1061,6 +1063,7 @@ V.about = async () => {
     <li>행정처분은 공개 기간이 남은 건만 API에서 제공되지만, 이 사이트는 한 번 수집한 처분을 지우지 않고 '공개 종료'로 표시해 계속 보여 줍니다 (2026-11-17 첫 수집 이후분부터). 유형은 처분명 문구로 나눈 것입니다.</li>
     <li>의약품 설명서 본문(효능·용법·주의사항)은 저장하지 않고 식약처 원문 링크로 연결합니다.</li>
     <li>매일 03:00(KST) 수집합니다. 제품허가 상세는 매일 변경분만, 매월 1일 전체를 다시 받습니다.</li>
+    <li>세계 지도의 국가 경계는 Natural Earth 공개 자료(퍼블릭 도메인)를 world-atlas 패키지(ISC 라이선스) 형식으로 사이트에 넣어 씁니다. 싱가포르·몰타·홍콩처럼 작은 지역은 지도에 나오지 않아 목록으로 따로 표시합니다.</li>
     <li>이 사이트는 공식 판단을 대신하지 않습니다. 중요한 결정 전에는 식약처 의약품안전나라 원문을 확인하세요.</li></ul>`)}
   <div class="foot">화면 데이터 생성: ${esc(META.generated_at)} (KST)</div>`;
   return { html };
