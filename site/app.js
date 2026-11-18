@@ -698,11 +698,16 @@ V.markets = async () => {
   const linkBtn = (attr, val, text) => `<a class="link" href="#markets" ${attr}="${esc(val)}">${esc(text)}</a>`;
 
   // 1. 성분
-  const ing = table({ rows: m.ingredients, sort: "n", csv: "성분별", ph: "성분명", text: r => r[0],
-    filters: [{ label: "단일/복합", get: r => /,/.test(r[0]) ? "복합제" : "단일제", opts: ["단일제", "복합제"] }],
-    cols: [{ k: "k", t: "주성분", v: r => r[0], h: r => linkBtn("data-ingr", r[0], r[0]), wrap: 1 }, { k: "n", t: "품목", v: r => r[1], n: 1 }, { k: "a", t: "유효", v: r => r[2], n: 1 },
+  // 성분 조합: 성분을 나눠 중복 제거·정렬 후 ' + '로 이은 묶음 (순서가 달라도 같은 조합은 하나로)
+  const singles = m.ingredients_single || [];
+  const ingCols = (attr, label) => [{ k: "k", t: label, v: r => r[0], h: r => linkBtn(attr, r[0], r[0]), wrap: 1 }, { k: "n", t: "품목", v: r => r[1], n: 1 }, { k: "a", t: "유효", v: r => r[2], n: 1 },
       { k: "c", t: "업체 수", v: r => r[3], n: 1 }, { k: "p", t: `${ly} 생산`, v: r => r[4], n: 1, h: r => r[4] ? wonM(r[4]) : "–" }, { k: "i", t: `${ly} 수입`, v: r => r[5], n: 1, h: r => r[5] ? usd(r[5]) : "–" },
-      { k: "t", t: "생산 1위 업체", v: r => (r[6][0] || [])[1] || "", h: topCo }] });
+      { k: "t", t: "생산 1위 업체", v: r => (r[6][0] || [])[1] || "", h: topCo }];
+  const nParts = r => r[0].split(" + ").length;
+  const ing = table({ rows: m.ingredients, sort: "n", csv: "성분조합별", ph: "성분명 (조합 안의 성분도 검색)", text: r => r[0],
+    filters: [{ label: "단일/복합", get: r => nParts(r) > 1 ? `복합제 (${nParts(r) >= 4 ? "4개 이상" : nParts(r) + "개"} 성분)` : "단일제", opts: ["단일제", "복합제 (2개 성분)", "복합제 (3개 성분)", "복합제 (4개 이상 성분)"] }],
+    cols: ingCols("data-ingr", "성분 조합") });
+  const ing1 = table({ rows: singles, sort: "n", csv: "개별성분별", ph: "성분명", text: r => r[0], cols: ingCols("data-ingr1", "개별 성분") });
   // 2. ATC 시장
   const atcName = k => m.atc1[k[0]] || "";
   const atc = table({ rows: m.atc, sort: "n", csv: "ATC시장", ph: "ATC 코드, 대분류", text: r => r[0] + " " + atcName(r[0]),
@@ -741,7 +746,8 @@ V.markets = async () => {
   const cntBand = b => ex.filter(r => band(r[5]) === b).length;
 
   const tb = tabs([
-    { t: `성분 (${fmt(m.ingredients.length)})`, html: `<div class="notice small">주성분이 같은 품목끼리 묶었습니다(허가 상세의 주성분 기준, 복합제는 성분 조합 전체가 같은 경우만 같은 묶음). 성분명을 누르면 품목 목록과 생산 상위 업체가 열립니다.</div>` + ing.html + srcline(["drug_permit_detail", "production_import"]) + '<div id="mk-ingr"></div>', bind: ing.bind },
+    { t: `개별 성분 (${fmt(singles.length)})`, html: `<div class="notice small">성분 하나를 기준으로, 그 성분이 들어간 모든 품목을 셉니다(복합제에 들어간 것 포함). 예: 헤파린나트륨 단일제와 헤파린나트륨이 든 복합제를 모두 포함. 성분명을 누르면 품목 목록과 생산 상위 업체가 열립니다. 생산 금액은 복합제의 경우 품목 전체 금액이라 성분끼리 더하면 중복됩니다.</div>` + ing1.html + srcline(["drug_permit_detail", "production_import"]) + '<div id="mk-ingr1"></div>', bind: ing1.bind },
+    { t: `성분 조합 (${fmt(m.ingredients.length)})`, html: `<div class="notice small">주성분 구성이 같은 품목끼리 묶었습니다. 성분을 나눠 중복을 없애고 정렬했으므로 표기 순서가 달라도 같은 조합은 한 묶음입니다(성분은 ' + '로 구분). 단일제·복합제(성분 수)로 거를 수 있습니다.</div>` + ing.html + srcline(["drug_permit_detail", "production_import"]) + '<div id="mk-ingr"></div>', bind: ing.bind },
     { t: `ATC 시장 (${fmt(m.atc.length)})`, html: `<div class="notice small">ATC 코드 앞 4자리(3단계, 예: C10A)로 묶은 시장입니다. 3단계 이름은 공공데이터에 없어 1단계 대분류 이름만 표시합니다. 코드를 누르면 상세가 열립니다.</div>` + atc.html + srcline(["drug_permit_detail", "production_import"]) + '<div id="mk-atc"></div>', bind: atc.bind },
     { t: "품목 순위", html: `<div class="grid2">${panel(`${esc(ly)} 생산 상위 품목`, rP.html, "백만원 기준")}${panel(`${esc(ly)} 수입 상위 품목`, rI.html, "달러 기준")}${panel(`생산 급성장 품목 (${esc(py)}→${esc(ly)})`, rU.html, `${esc(py)} 생산 10억원 이상 품목만`)}${panel(`생산 급감 품목 (${esc(py)}→${esc(ly)})`, rD.html, `${esc(py)} 생산 10억원 이상 품목만`)}</div>` + srcline(["production_import"], "한 품목을 여러 곳이 보고한 경우 합산"), bind() { rP.bind(); rI.bind(); rU.bind(); rD.bind(); } },
     { t: `신약·희귀 (${fmt(nrRows.length)})`, html: `<div class="kpis">${kpi("신약", fmt(nd.length), `유효 ${fmt(nd.filter(isAct).length)}`)}${kpi("희귀의약품", fmt(rd.length), `유효 ${fmt(rd.filter(isAct).length)}`)}</div>
@@ -755,11 +761,15 @@ V.markets = async () => {
     html, bind() {
       tb.bind();
       $("#mk-root").addEventListener("click", e => {
-        const a = e.target.closest("[data-ingr],[data-atc]"); if (!a) return;
+        const a = e.target.closest("[data-ingr],[data-ingr1],[data-atc]"); if (!a) return;
         e.preventDefault();
-        if (a.dataset.ingr != null) {
+        const bySeqs = x => { const s = new Set(x[7] || []); return di.rows.filter(r => s.has(r[0])); };
+        if (a.dataset.ingr1 != null) {
+          const k = a.dataset.ingr1, x = singles.find(r => r[0] === k);
+          marketDetail("mk-ingr1", `성분: ${k} (들어간 모든 품목)`, bySeqs(x), x, k);
+        } else if (a.dataset.ingr != null) {
           const k = a.dataset.ingr, x = m.ingredients.find(r => r[0] === k);
-          marketDetail("mk-ingr", `성분: ${k}`, di.rows.filter(r => (r[7] || r[8]) === k), x, k);
+          marketDetail("mk-ingr", `성분 조합: ${k}`, x[7] ? bySeqs(x) : di.rows.filter(r => (r[7] || r[8]) === k), x, k);
         } else {
           const k = a.dataset.atc, x = m.atc.find(r => r[0] === k);
           marketDetail("mk-atc", `ATC ${k} (${atcName(k)})`, di.rows.filter(r => (r[9] || "").startsWith(k)), x, "ATC_" + k);

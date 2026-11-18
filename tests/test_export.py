@@ -29,6 +29,12 @@ class HelperTests(unittest.TestCase):
         self.assertEqual(E.biz("123-45-67890"), "1234567890")
         self.assertEqual(E.biz("None"), "")
 
+    def test_ingr_parts(self):
+        # 순서가 달라도·중복이 있어도 같은 성분 목록
+        self.assertEqual(E.ingr_parts("[A1]헤파린나트륨|[A2]알란토인|[A1]헤파린나트륨"), ["알란토인", "헤파린나트륨"])
+        self.assertEqual(E.ingr_parts("[A2]알란토인|[A1]헤파린나트륨"), ["알란토인", "헤파린나트륨"])
+        self.assertEqual(E.ingr_parts(""), [])
+
     def test_admin_type(self):
         self.assertEqual(E.admin_type("제조업무정지 3개월"), "업무정지")
         self.assertEqual(E.admin_type("과징금 부과"), "과징금")
@@ -142,6 +148,8 @@ class ExportTests(unittest.TestCase):
         self.assertEqual(mk["ingredients"][0][:4], ["아세트아미노펜", 1, 1, 1])
         self.assertEqual(mk["ingredients"][0][4], 201.0)  # 성분별 최신 연도 생산 합계
         self.assertEqual(mk["atc"][0][0], "N02B")
+        self.assertEqual(mk["ingredients"][0][7], ["202600001"])  # 묶음에 속한 품목
+        self.assertEqual(mk["ingredients_single"][0][0], "아세트아미노펜")
         self.assertEqual([x[5] for x in mk["exclusivity"]], ["2027-08-24"])  # 재심사 종료일
         self.assertEqual(mk["top_p"][0][0], "202600001")
         self.assertEqual(det["outsourced"], [["202600001", "가정", "나제약(주)", "정상"]])  # 위탁 품목

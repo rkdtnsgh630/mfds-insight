@@ -143,6 +143,7 @@ class Exporter:
         drugs = []
         drug_detail = defaultdict(dict)
         items_by_biz = defaultdict(list)
+        ingr_map = {}  # 품목 -> 정렬된 성분 목록 (성분·시장 집계용)
         for r in P["drug_permit"]:
             seq = S(r)
             d = detail.get(seq, {})
@@ -151,6 +152,7 @@ class Exporter:
             atc = v(d, "ATC_CODE")
             flags = ("N" if v(d, "NEWDRUG_CLASS_NAME") == "신약" else "") + ("R" if v(d, "RARE_DRUG_YN") == "Y" else "") + ("G" if r.get("__gone") else "")  # G = API에서 더 이상 조회 안 됨
             ingr_kr = cut(strip_codes(v(d, "MAIN_ITEM_INGR")), 60)
+            ingr_map[seq] = ingr_parts(v(d, "MAIN_ITEM_INGR")) or ingr_parts(v(r, "ITEM_INGR_NAME"))
             row = [seq, v(r, "ITEM_NAME"), v(r, "ENTP_NAME"), biz(v(r, "BIZRNO")), ymd(v(r, "ITEM_PERMIT_DATE")),
                    spc, status, ingr_kr, cut(v(r, "ITEM_INGR_NAME"), 60), atc, flags, v(r, "PERMIT_KIND_CODE"),
                    ymd(v(r, "CANCEL_DATE"))]
@@ -420,13 +422,12 @@ class Exporter:
         prev_year = years[-2] if len(years) > 1 else ""
         amt = lambda seq, y, k: item_amt[seq][y][k] if seq in item_amt and y in item_amt[seq] else 0.0
 
-        def market(keyf):
+        def market(keysf, with_seqs=False):
             agg = {}
             for r in drugs:
-                k = keyf(r)
-                if not k:
-                    continue
-                a = agg.setdefault(k, {"n": 0, "act": 0, "cos": set(), "p": 0.0, "i": 0.0, "bp": Counter()})
+              for k in keysf(r):
+                a = agg.setdefault(k, {"n": 0, "act": 0, "cos": set(), "p": 0.0, "i": 0.0, "bp": Counter(), "seqs": []})
+                a["seqs"].append(r[0])
                 a["n"] += 1
                 if r[6] == "정상" and "G" not in r[10]:
                     a["act"] += 1
@@ -439,11 +440,14 @@ class Exporter:
                     a["bp"][r[3]] += p
             return [[k, a["n"], a["act"], len(a["cos"]), round(a["p"], 1), round(a["i"]),
                      [[b, cname_all.get(b, ""), round(x, 1)] for b, x in a["bp"].most_common(3)]]
+                    + ([a["seqs"]] if with_seqs else [])
                     for k, a in sorted(agg.items(), key=lambda kv: -kv[1]["n"])]
 
         cname_all = {c[0]: c[1] for c in companies}
-        ingredients = market(lambda r: r[7] or r[8])
-        atc_market = market(lambda r: (r[9][:4] if len(r[9]) >= 4 else r[9]) if r[9] else "")
+        # 성분 조합별(정렬된 조합이 같으면 같은 묶음)과 개별 성분별(복합제에 들어간 것까지 포함) 두 가지
+        ingredients = market(lambda r: [" + ".join(ingr_map[r[0]])] if ingr_map.get(r[0]) else [], with_seqs=True)
+        ingredients_single = market(lambda r: ingr_map.get(r[0], []), with_seqs=True)
+        atc_market = market(lambda r: [r[9][:4] if len(r[9]) >= 4 else r[9]] if r[9] else [])
 
         def top_items(k, n=50):
             rows = [(r, amt(r[0], latest_year, k), amt(r[0], prev_year, k)) for r in drugs if amt(r[0], latest_year, k) > 0]
@@ -476,7 +480,7 @@ class Exporter:
                         exclusivity.append([seq, r0[1], r0[2], r0[3], kind, end, r0[7] or r0[8], note, r0[6]])
         exclusivity.sort(key=lambda x: x[5])
 
-        markets = {"latest": latest_year, "prev": prev_year, "ingredients": ingredients, "atc": atc_market,
+        markets = {"latest": latest_year, "prev": prev_year, "ingredients": ingredients, "ingredients_single": ingredients_single, "atc": atc_market,
                    "atc1": ATC1, "top_p": top_items("p"), "top_i": top_items("i"),
                    "grow_up": growth("p", True), "grow_down": growth("p", False), "exclusivity": exclusivity}
 
