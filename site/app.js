@@ -31,18 +31,39 @@ const API = id => (META && META.apis.find(a => a.id === id)) || { name: id, url:
 
 function toast(t) { const el = $("#toast"); el.textContent = t; el.hidden = false; clearTimeout(toast.t); toast.t = setTimeout(() => el.hidden = true, 3000); }
 
-function head(title, crumb, srcIds) {
+// 데이터별 자료 기간: 날짜 필드가 있는 데이터는 첫~마지막 날짜, 없는 데이터는 '현재 등록 현황'
+const PERIOD = {
+  drug_permit: { n: "제품허가", basis: "허가일", note: "현재 조회되는 품목 기준" },
+  drug_permit_detail: { n: "허가 상세", same: "drug_permit" },
+  production_import: { n: "생산·수입실적", basis: "실적연도", note: "연간 자료" },
+  recall_drug: { n: "회수·판매중지", basis: "회수명령일" },
+  admin_action: { n: "행정처분", basis: "처분확정일", note: "공개 기간이 남은 처분만" },
+  supply_suspend: { n: "공급중단", basis: "신고일" },
+  supply_shortage: { n: "공급부족", basis: "신고일" },
+  safety_letter: { n: "안전성서한", basis: "공고일" },
+  company_list: { n: "업체허가", now: 1 },
+  gmp: { n: "GMP 적합판정", now: 1 },
+  overseas_mfr: { n: "해외제조소", now: 1 },
+};
+function periodRow(ids) {
+  const items = ids.map(id => {
+    const p = PERIOD[id]; if (!p) return "";
+    if (p.same) return "";
+    const c = META.coverage && META.coverage[id];
+    const range = p.now ? `<b>현재 등록 현황</b>` : c ? `<b>${esc(c[0])} ~ ${esc(c[1])}</b>` : `<b>–</b>`;
+    const sub = p.now ? "기간 구분 없음" : [p.basis && p.basis + " 기준", p.note].filter(Boolean).join(", ");
+    return `<span class="per"><span class="pn">${esc(p.n)}</span> ${range}${sub ? ` <span class="ps">${esc(sub)}</span>` : ""}</span>`;
+  }).filter(Boolean);
+  return items.length ? `<div class="periods" aria-label="자료 기간"><span class="pl">자료 기간</span>${items.join("")}</div>` : "";
+}
+function head(title, crumb, srcIds, periodIds) {
   const src = (srcIds || []).map(id => `<a href="${esc(API(id).url)}" target="_blank" rel="noopener">${esc(API(id).name)}</a>`).join(" · ");
   return `<div class="pagehead"><div><div class="crumb">${crumb || "MFDS INSIGHT"}</div><h1>${title}</h1></div>
-    <div class="meta"><span>데이터 기준일 <b>${esc(META.as_of)}</b></span>${src ? `<span>출처 <b>${src}</b></span>` : ""}</div></div>`;
+    <div class="meta"><span>데이터 기준일 <b>${esc(META.as_of)}</b></span>${src ? `<span>출처 <b>${src}</b></span>` : ""}</div></div>`
+    + periodRow(periodIds || srcIds || []);
 }
-// 일부 API는 최근 몇 년치만 제공한다 → 출처 줄에 실제 데이터가 시작하는 날짜를 함께 적는다
-const COV_IDS = new Set(["recall_drug", "admin_action", "supply_suspend", "supply_shortage", "safety_letter"]);
-const covNote = ids => ids.filter(id => COV_IDS.has(id) && META.coverage && META.coverage[id])
-  .map(id => `${esc(API(id).name.replace(/^의약품\s*/, ""))} ${esc(META.coverage[id][0])}부터`).join(", ");
 const srcline = (ids, extra) => {
-  const cov = covNote(ids);
-  return `<div class="srcline">출처: ${ids.map(id => `<a href="${esc(API(id).url)}" target="_blank" rel="noopener">${esc(API(id).name)}</a>`).join(" · ")}${extra ? " · " + extra : ""}${cov ? ` · 제공 기간: ${cov}` : ""}</div>`;
+  return `<div class="srcline">출처: ${ids.map(id => `<a href="${esc(API(id).url)}" target="_blank" rel="noopener">${esc(API(id).name)}</a>`).join(" · ")}${extra ? " · " + extra : ""}</div>`;
 };
 const panel = (title, body, sub) => `<section class="panel"><div class="ph"><div><h2>${title}</h2>${sub ? `<div class="src">${sub}</div>` : ""}</div></div>${body}</section>`;
 const kpi = (label, value, sub, href) => `<div class="kpi"><div class="l">${label}</div>${href ? `<a class="v" href="${href}">${value}</a>` : `<div class="v">${value}</div>`}<div class="s">${sub || ""}</div></div>`;
@@ -201,7 +222,7 @@ V.dashboard = async () => {
   const d = await load("dashboard.json"), k = d.kpi, t = d.trend;
   const feed = (rows, f) => rows.length ? `<div class="feed">${rows.map(f).join("")}</div>` : empty();
   const r = (when, title, pill) => `<div class="r"><span class="when">${esc(when)}</span><span class="t">${title}</span>${pill || ""}</div>`;
-  const html = head("종합 대시보드", "MFDS INSIGHT", []) + `
+  const html = head("종합 대시보드", "MFDS INSIGHT", [], ["drug_permit", "recall_drug", "admin_action", "supply_suspend", "supply_shortage", "safety_letter"]) + `
   <div class="kpis">
     ${kpi("유효 허가 품목", fmt(k.items_active), `전체 ${fmt(k.items_total)}개 중 상태 '정상'`, "#drugs")}
     ${kpi("품목 보유 업체", fmt(k.companies_with_items), `연결된 업체 ${fmt(k.companies_total)}곳 (사업자번호 기준)`, "#companies")}
@@ -272,7 +293,7 @@ V.companies = async () => {
       { k: "sus", t: "공급중단", v: r => r[11], n: 1 },
     ],
   });
-  const html = head("제약회사", "탐색", ["company_list", "drug_permit", "production_import"]) +
+  const html = head("제약회사", "탐색", ["company_list", "drug_permit", "production_import"], ["company_list", "drug_permit", "production_import", "gmp", "overseas_mfr", "admin_action", "recall_drug", "supply_suspend"]) +
     `<div class="notice small">업체는 <b>사업자등록번호</b>로만 묶었습니다. 이름이 비슷해도 번호가 다르면 다른 업체로 표시합니다. 생산실적은 백만원, 수입실적은 달러 단위(공식 명세)라 서로 더하지 않습니다.</div>` +
     panel(`업체 목록 (${fmt(c.rows.length)}곳)`, t.html);
   return { html, bind: t.bind };
@@ -308,7 +329,7 @@ V.company = async biz => {
   };
   (c.regions && c.regions.length ? c.regions : [c.region]).forEach(a => addLoc(a, c.region_from_admin ? "행정처분" : "업체허가"));
   c.gmp.forEach(g => addLoc(g[2], "GMP 공장"));
-  const html = head(esc(c.name), `<a class="link" href="#companies">제약회사</a> / 업체 상세`, []) + `
+  const html = head(esc(c.name), `<a class="link" href="#companies">제약회사</a> / 업체 상세`, [], ["company_list", "drug_permit", "production_import", "gmp", "overseas_mfr", "admin_action", "recall_drug", "supply_suspend", "supply_shortage"]) + `
   <dl class="idgrid co">
     <div><dt>사업자등록번호</dt><dd>${esc(fmtBiz(biz))}</dd></div>
     <div><dt>소재지 (${locs.length}곳)</dt><dd>${locs.length ? locs.map(l => `${esc(l.k)} <span class="muted small">${esc(l.src.join("·"))}</span>`).join("<br>") : "–"}</dd></div>
@@ -377,7 +398,7 @@ V.drug = async seq => {
   const field = (t, v) => `<div><dt>${t}</dt><dd>${v || '<span class="muted">–</span>'}</dd></div>`;
   const prodRows = years.flatMap(y => prod[y].map(p => [y, p[0], p[1]]));
   const html = head(esc(r[1]) + (r[10].includes("N") ? ' <span class="flag">신약</span>' : "") + (r[10].includes("R") ? ' <span class="flag r">희귀</span>' : ""),
-    `<a class="link" href="#drugs">의약품</a> / 품목 상세`, ["drug_permit", "drug_permit_detail"]) + `
+    `<a class="link" href="#drugs">의약품</a> / 품목 상세`, ["drug_permit", "drug_permit_detail"], ["drug_permit", "production_import", "recall_drug", "supply_suspend", "supply_shortage", "admin_action"]) + `
   <dl class="idgrid">
     ${field("업체", linkCo(r[3], r[2]))}
     ${field("품목기준코드", esc(r[0]))}

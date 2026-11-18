@@ -151,3 +151,11 @@ td.clip{max-width:260px;overflow:hidden;text-overflow:ellipsis}
 .idgrid .note{margin:6px 0 0;padding:0;border:0}
 @media (max-width:900px){.idgrid.co{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media (max-width:520px){.idgrid.co{grid-template-columns:minmax(0,1fr)}}
+/* 자료 기간 줄 */
+.periods{display:flex;flex-wrap:wrap;gap:6px 8px;align-items:baseline;font-size:12px;color:var(--fg2);margin-top:-6px}
+.periods .pl{font-size:11.5px;color:var(--fg3);margin-right:2px}
+.periods .per{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:3px 8px;white-space:nowrap}
+.periods .pn{color:var(--fg3)}
+.periods b{font-weight:500;color:var(--fg);font-variant-numeric:tabular-nums}
+.periods .ps{color:var(--fg3);font-size:11px}
+@media (max-width:520px){.periods .per{white-space:normal}}
