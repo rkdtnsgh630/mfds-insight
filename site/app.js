@@ -156,6 +156,31 @@ function barSvg(W, items, o) {
   return `<svg viewBox="0 0 ${W} ${H}" width="100%" height="${H}" role="img" aria-label="${esc(o.label || "막대그래프")}">${g}</svg>`;
 }
 
+// 세계 분포 점 지도 (해안선 데이터 없이 위·경도 격자 위에 점만 그림: 정방위 원통 투영)
+function worldMap(rows) {
+  const pts = rows.filter(r => typeof r[7] === "number" && typeof r[8] === "number" && Math.abs(r[7]) <= 90 && Math.abs(r[8]) <= 180 && !(r[7] === 0 && r[8] === 0));
+  if (!pts.length) return empty("좌표가 들어간 데이터가 아직 없습니다. 다음 데이터 갱신(매일 03:00 수집 후)부터 표시됩니다.");
+  const cells = {};
+  pts.forEach(r => { const k = Math.round(r[7]) + "," + Math.round(r[8]); const c = cells[k] || (cells[k] = { lat: Math.round(r[7]), lng: Math.round(r[8]), n: 0, cn: {} }); c.n++; c.cn[r[3]] = (c.cn[r[3]] || 0) + 1; });
+  const byC = {};
+  pts.forEach(r => { const c = byC[r[3]] || (byC[r[3]] = { n: 0, lat: 0, lng: 0 }); c.n++; c.lat += r[7]; c.lng += r[8]; });
+  const topC = Object.entries(byC).sort((a, b) => b[1].n - a[1].n).slice(0, 10);
+  const mx = Math.max(...Object.values(cells).map(c => c.n));
+  return deferChart(W => {
+    const H = Math.round(W * 0.5), x = lng => (lng + 180) / 360 * W, y = lat => (90 - lat) / 180 * H;
+    let g = `<rect x="0" y="0" width="${W}" height="${H}" fill="var(--mute-bg)" rx="6"/>`;
+    for (let lng = -150; lng <= 150; lng += 30) g += `<line x1="${x(lng)}" x2="${x(lng)}" y1="0" y2="${H}" stroke="var(--line)"/>`;
+    for (let lat = -60; lat <= 60; lat += 30) g += `<line x1="0" x2="${W}" y1="${y(lat)}" y2="${y(lat)}" stroke="var(--line)"/><text x="4" y="${y(lat) - 3}">${lat === 0 ? "적도" : (lat > 0 ? "북위 " : "남위 ") + Math.abs(lat) + "°"}</text>`;
+    Object.values(cells).sort((a, b) => b.n - a.n).forEach(c => {
+      const r = Math.max(1.6, Math.sqrt(c.n / mx) * W / 60);
+      const top = Object.entries(c.cn).sort((a, b) => b[1] - a[1]).map(([k, n]) => `${k} ${fmt(n)}`).slice(0, 3).join(", ");
+      g += `<circle cx="${x(c.lng)}" cy="${y(c.lat)}" r="${r}" fill="var(--accent)" fill-opacity=".45" stroke="var(--accent)" stroke-width=".8"><title>위도 ${c.lat}° 경도 ${c.lng}° 부근: 제조소 ${fmt(c.n)}곳 (${esc(top)})</title></circle>`;
+    });
+    topC.forEach(([name, c]) => { const cx = x(c.lng / c.n), cy = y(c.lat / c.n); g += `<text x="${cx + 6}" y="${cy - 6}" style="fill:var(--fg);font-weight:600;paint-order:stroke;stroke:var(--panel);stroke-width:3px">${esc(name)} ${fmt(c.n)}</text>`; });
+    return `<svg viewBox="0 0 ${W} ${H}" width="100%" height="${H}" role="img" aria-label="해외 제조소 분포 지도">${g}</svg>`;
+  }, `<div class="srcline">좌표가 있는 제조소 ${fmt(pts.length)}곳 · 국가 이름은 상위 10개국의 평균 위치에 표시 · 점에 마우스를 올리면 국가별 수</div>`);
+}
+
 // ---------- 표 (검색·필터·정렬·페이지·CSV) ----------
 let TID = 0;
 function table(cfg) {
@@ -361,6 +386,10 @@ V.company = async biz => {
       `<tr><td>${esc(es)}</td><td>${esc(s.name)}</td>${years.map(y => `<td class="n">${s.years[y] && s.years[y].p ? wonM(s.years[y].p) : "–"}</td>`).join("")}<td class="n">${s.years[ly] && s.years[ly].i ? usd(s.years[ly].i) : "–"}</td></tr>`).join("")}</tbody></table></div>`
     + `<div class="srcline">생산·수입실적은 허가(업)마다 따로 보고됩니다. 업 일련번호가 어느 공장(주소)인지 연결하는 정보는 공공데이터에 없어 공장 이름으로 표시하지 않습니다.</div>`, "같은 사업자번호 안의 허가(업)별 보고") : ""}
   ${panel(`허가 품목 (${fmt(c.items.length)})`, items.html)}
+  ${(c.outsourced && c.outsourced.length) || (c.contracted_in && c.contracted_in.length) ? `<div class="grid2">
+    ${panel(`위탁 제조 맡긴 품목 (${fmt((c.outsourced || []).length)})`, (c.outsourced || []).length ? `<div class="tbl-wrap"><table><thead><tr><th>품목</th><th>수탁 제조업체 (허가 상세 표기)</th><th>상태</th></tr></thead><tbody>${c.outsourced.map(x => `<tr><td>${linkDrug(x[0], x[1])}</td><td class="wrap">${esc(x[2])}</td><td>${statusTag(x[3])}</td></tr>`).join("")}</tbody></table></div>` : empty(), "이 회사 품목 중 다른 곳에 제조를 맡긴 것")}
+    ${panel(`이 회사가 수탁 제조하는 것으로 표기된 품목 (${fmt(c.contracted_in_total || 0)})`, (c.contracted_in || []).length ? `<div class="tbl-wrap"><table><thead><tr><th>품목</th><th>허가 업체</th><th>상태</th></tr></thead><tbody>${c.contracted_in.map(x => `<tr><td>${linkDrug(x[0], x[1])}</td><td>${linkCo(x[3], x[2])}</td><td>${statusTag(x[4])}</td></tr>`).join("")}</tbody></table></div>` : empty(), "다른 회사 품목의 수탁 제조업체 표기가 이 회사 상호와 정확히 같은 경우")}
+  </div><div class="srcline">허가 상세의 위탁제조업체(CNSGN_MANUF)는 사업자번호 없이 이름만 있어, 상호가 정확히 같은 경우만 참고로 연결했습니다. 동일 업체로 확정한 것은 아닙니다.</div>` : ""}
   <div class="grid2">
     ${panel(`행정처분 (${c.admin.length})`, tl(c.admin, x => tr(x[0], `<span class="pill p-mute">${esc(x[2])}</span>`, `${x[5] === "공개 종료" ? `<span class="pill p-bad">공개 종료</span> ` : ""}${esc(x[3])}${x[1] ? `<div class="muted small">${esc(x[1])}</div>` : ""}`)) + srcline(["admin_action"]))}
     ${panel(`회수·판매중지 (${c.recall.length})`, tl(c.recall, x => tr(x[0], x[4] === "Y" ? `<span class="pill p-bad">강제</span>` : `<span class="pill p-mute">강제 아님</span>`, `${x[5] === "공개 종료" ? `<span class="pill p-bad">공개 종료</span> ` : ""}${linkDrug(x[2], x[1])}<div class="muted small">${esc(x[3])}</div>`)) + srcline(["recall_drug"]))}
@@ -608,15 +637,17 @@ V.stats = async () => {
     const hl = b => b === DEFAULT_CO;
     const ser = k => det.map((c, i) => ({ n: (c.name || coName.get(sel[i])) + (hl(sel[i]) ? " ★" : ""), c: COLORS[i], w: hl(sel[i]) ? 4 : 1.8, op: hl(sel[i]) ? 1 : 0.55, v: p.x.map(y => (c.prod[y] && c.prod[y][k]) || 0) }));
     const sp = ser("p"), si = ser("i");
+    const since1y = new Date(new Date(META.as_of + "T00:00:00") - 365 * 864e5).toISOString().slice(0, 10);
     const growth = v => { const f = v.findIndex(x => x > 0); const l = v[v.length - 1]; return f >= 0 && f < v.length - 1 && v[f] > 0 ? `${((l / v[f] - 1) * 100).toFixed(0)}% (${p.x[f]}→${ly})` : "–"; };
     const rows = det.map((c, i) => `<tr${hl(sel[i]) ? ' class="hl"' : ""}><td><span class="sw" style="--c:${COLORS[i]}"></span>${linkCo(sel[i], c.name || coName.get(sel[i]))}</td>
       <td class="n">${sp[i].v[lyIdx] ? wonM(sp[i].v[lyIdx]) : "–"}</td><td class="n">${pct(sp[i].v[lyIdx], p.p[lyIdx])}</td><td class="n">${growth(sp[i].v)}</td>
-      <td class="n">${si[i].v[lyIdx] ? usd(si[i].v[lyIdx]) : "–"}</td><td class="n">${pct(si[i].v[lyIdx], p.i[lyIdx])}</td></tr>`).join("");
+      <td class="n">${si[i].v[lyIdx] ? usd(si[i].v[lyIdx]) : "–"}</td><td class="n">${pct(si[i].v[lyIdx], p.i[lyIdx])}</td><td class="n">${fmt(c.items ? c.items.filter(x => x[4] === "정상").length : 0)}</td><td class="n">${fmt(c.items ? c.items.filter(x => (x[2] || "") >= since1y).length : 0)}</td><td class="n">${fmt((c.recall || []).length)}</td><td class="n">${fmt((c.suspend || []).length)}</td><td class="n">${fmt((c.admin || []).length)}</td></tr>`).join("");
     box.innerHTML = `<div class="grid2">
         <div>${lineChart(p.x, sp, { vf: wonM, tf: v => v >= 1e6 ? (v / 1e6) + "조" : fmt(v / 100) + "억", label: "업체별 생산실적" })}<div class="srcline">연도별 생산실적 (백만원)</div></div>
         <div>${lineChart(p.x, si, { vf: usd, tf: v => v >= 1e8 ? (v / 1e8) + "억$" : v >= 1e4 ? fmt(v / 1e4) + "만$" : fmt(v), label: "업체별 수입실적" })}<div class="srcline">연도별 수입실적 (달러)</div></div>
       </div>
-      <div class="tbl-wrap" style="margin-top:12px"><table><thead><tr><th>업체</th><th class="n">${esc(ly)} 생산</th><th class="n">업계 비중</th><th class="n">생산 증감</th><th class="n">${esc(ly)} 수입</th><th class="n">업계 비중</th></tr></thead><tbody>${rows}</tbody></table></div>`
+      <div class="tbl-wrap" style="margin-top:12px"><table><thead><tr><th>업체</th><th class="n">${esc(ly)} 생산</th><th class="n">업계 비중</th><th class="n">생산 증감</th><th class="n">${esc(ly)} 수입</th><th class="n">업계 비중</th><th class="n">유효 품목</th><th class="n">최근 1년 신규 허가</th><th class="n">회수</th><th class="n">공급중단</th><th class="n">행정처분</th></tr></thead><tbody>${rows}</tbody></table></div>`
+      + `<div class="srcline">유효 품목·신규 허가는 제품허가, 회수·공급중단·행정처분은 각 데이터의 보관 기록 전체 기준 (공개 종료분 포함)</div>`
       + srcline(["production_import"], `업계 비중 = 해당 연도 업계 전체 생산(${wonM(p.p[lyIdx])}) 또는 수입(${usd(p.i[lyIdx])}) 대비`);
     drawCharts(box);
   }
@@ -644,8 +675,102 @@ V.stats = async () => {
   };
 };
 
+// ---------- 성분·시장: 성분, ATC 시장, 품목 순위, 신약·희귀, 독점 종료 예정 ----------
+V.markets = async () => {
+  const [m, di] = await Promise.all([load("markets.json"), load("drugs_index.json")]);
+  const ly = m.latest, py = m.prev;
+  const topCo = x => x[6] && x[6].length ? linkCo(x[6][0][0], x[6][0][1] || fmtBiz(x[6][0][0])) : "–";
+  const itemCols = withCo => [{ k: "name", t: "품목명", v: r => r[1], h: r => linkDrug(r[0], r[1]) + (r[10].includes("N") ? '<span class="flag">신약</span>' : "") + (r[10].includes("R") ? '<span class="flag r">희귀</span>' : "") },
+    ...(withCo ? [{ k: "e", t: "업체", v: r => r[2], h: r => linkCo(r[3], r[2]) }] : []),
+    { k: "spc", t: "구분", v: r => r[5] }, { k: "atc", t: "ATC", v: r => r[9] }, { k: "permit", t: "허가일", v: r => r[4] }, { k: "st", t: "상태", v: r => r[6], h: r => statusTag(r[6]) }];
+  // 표 안의 이름을 누르면 아래에 상세(품목 목록·업체 점유)를 연다
+  function marketDetail(boxId, title, rows, x, label) {
+    const t = table({ rows, sort: "permit", csv: `${label}_품목`, ph: "품목명, 업체", text: r => [r[1], r[2], r[0]].join(" "), cols: itemCols(true), per: 10 });
+    const share = (x[6] || []).map(s => ({ k: s[1] || fmtBiz(s[0]), v: s[2], href: "#company/" + s[0] }));
+    const box = $("#" + boxId);
+    box.innerHTML = panel(esc(title), `<div class="kpis">${kpi("품목", fmt(x[1]), `유효 ${fmt(x[2])}`)}${kpi("업체", fmt(x[3]), "품목 보유 업체 수")}${kpi(`${esc(ly)} 생산`, x[4] ? wonM(x[4]) : "–", "품목 생산실적 합계")}${kpi(`${esc(ly)} 수입`, x[5] ? usd(x[5]) : "–", "품목 수입실적 합계")}</div>`
+      + (share.length ? `<h3 class="sub">${esc(ly)}년 생산 상위 업체</h3>` + barChart(share, { vf: wonM }) : "") + `<h3 class="sub">품목 (${fmt(rows.length)})</h3>` + t.html)
+      .replace('<div class="ph">', '<div class="ph"><button class="btn" type="button" data-close style="order:2">닫기</button>');
+    t.bind(); drawCharts(box);
+    box.querySelector("[data-close]").addEventListener("click", () => { box.innerHTML = ""; });
+    box.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+  const linkBtn = (attr, val, text) => `<a class="link" href="#markets" ${attr}="${esc(val)}">${esc(text)}</a>`;
+
+  // 1. 성분
+  const ing = table({ rows: m.ingredients, sort: "n", csv: "성분별", ph: "성분명", text: r => r[0],
+    filters: [{ label: "단일/복합", get: r => /,/.test(r[0]) ? "복합제" : "단일제", opts: ["단일제", "복합제"] }],
+    cols: [{ k: "k", t: "주성분", v: r => r[0], h: r => linkBtn("data-ingr", r[0], r[0]), wrap: 1 }, { k: "n", t: "품목", v: r => r[1], n: 1 }, { k: "a", t: "유효", v: r => r[2], n: 1 },
+      { k: "c", t: "업체 수", v: r => r[3], n: 1 }, { k: "p", t: `${ly} 생산`, v: r => r[4], n: 1, h: r => r[4] ? wonM(r[4]) : "–" }, { k: "i", t: `${ly} 수입`, v: r => r[5], n: 1, h: r => r[5] ? usd(r[5]) : "–" },
+      { k: "t", t: "생산 1위 업체", v: r => (r[6][0] || [])[1] || "", h: topCo }] });
+  // 2. ATC 시장
+  const atcName = k => m.atc1[k[0]] || "";
+  const atc = table({ rows: m.atc, sort: "n", csv: "ATC시장", ph: "ATC 코드, 대분류", text: r => r[0] + " " + atcName(r[0]),
+    filters: [{ label: "대분류", get: r => `${r[0][0]} ${atcName(r[0])}`, opts: Object.entries(m.atc1).map(([k, v]) => `${k} ${v}`) }],
+    cols: [{ k: "k", t: "ATC (3단계)", v: r => r[0], h: r => linkBtn("data-atc", r[0], r[0]) }, { k: "g", t: "대분류", v: r => atcName(r[0]) }, { k: "n", t: "품목", v: r => r[1], n: 1 }, { k: "a", t: "유효", v: r => r[2], n: 1 },
+      { k: "c", t: "업체 수", v: r => r[3], n: 1 }, { k: "p", t: `${ly} 생산`, v: r => r[4], n: 1, h: r => r[4] ? wonM(r[4]) : "–" }, { k: "i", t: `${ly} 수입`, v: r => r[5], n: 1, h: r => r[5] ? usd(r[5]) : "–" },
+      { k: "t", t: "생산 1위 업체", v: r => (r[6][0] || [])[1] || "", h: topCo }] });
+  // 3. 품목 순위: 행 = [순위, 품목코드, 품목명, 업체명, 사업자번호, 올해, 전년, (증감률)]
+  const growthOf = r => r[7] != null ? r[7] : (r[6] ? (r[5] - r[6]) / r[6] * 100 : null);
+  const rankT = (rows, k, money) => table({ rows: rows.map((r, i) => [i + 1, ...r]), sort: "rk", dir: 1, csv: `품목순위_${k}`, per: 10,
+    cols: [{ k: "rk", t: "순위", v: r => r[0], n: 1 }, { k: "n", t: "품목", v: r => r[2], h: r => linkDrug(r[1], r[2]) }, { k: "e", t: "업체", v: r => r[3], h: r => linkCo(r[4], r[3]) },
+      { k: "a", t: `${ly}`, v: r => r[5], n: 1, h: r => money(r[5]) }, { k: "b", t: `${py}`, v: r => r[6], n: 1, h: r => r[6] ? money(r[6]) : "–" },
+      { k: "g", t: "증감", v: growthOf, n: 1, h: r => { const g = growthOf(r); return g == null ? "–" : `<span class="${g >= 0 ? "d-dn" : "d-up"}">${g >= 0 ? "+" : ""}${g.toFixed(1)}%</span>`; } }] });
+  const rP = rankT(m.top_p, "생산", wonM), rI = rankT(m.top_i, "수입", usd), rU = rankT(m.grow_up, "급성장", wonM), rD = rankT(m.grow_down, "급감", wonM);
+  // 4. 신약·희귀
+  const nd = di.rows.filter(r => r[10].includes("N")), rd = di.rows.filter(r => r[10].includes("R"));
+  const isAct = r => r[6] === "정상" && !r[10].includes("G");
+  const yrs = [...new Set(nd.concat(rd).map(r => (r[4] || "").slice(0, 4)).filter(y => y >= "2000"))].sort();
+  const byYear = rows => yrs.map(y => rows.filter(r => (r[4] || "").startsWith(y)).length);
+  const coTop = rows => { const c = {}; rows.forEach(r => { if (r[3]) c[r[3]] = (c[r[3]] || 0) + 1; }); return Object.entries(c).sort((a, b) => b[1] - a[1]).slice(0, 12).map(([b, n]) => ({ k: rows.find(r => r[3] === b)[2], v: n, href: "#company/" + b })); };
+  const nrRows = nd.concat(rd.filter(r => !r[10].includes("N")));
+  const nrT = table({ rows: nrRows, sort: "permit", csv: "신약_희귀의약품", ph: "품목명, 업체, 성분", text: r => [r[1], r[2], r[7], r[8]].join(" "),
+    filters: [{ label: "구분", get: r => r[10].includes("N") && r[10].includes("R") ? "신약·희귀" : r[10].includes("N") ? "신약" : "희귀의약품", opts: ["신약", "희귀의약품", "신약·희귀"] }, { label: "상태", get: r => r[6], opts: [...new Set(nrRows.map(r => r[6]))] }],
+    cols: itemCols(true) });
+  // 5. 독점 종료 예정
+  const asOf = new Date(META.as_of + "T00:00:00");
+  const daysLeft = d => Math.round((new Date(d + "T00:00:00") - asOf) / 864e5);
+  const BANDS = ["이미 종료 (최근 1년)", "6개월 이내", "1년 이내", "2년 이내", "2년 이후"];
+  const band = d => { const n = daysLeft(d); return n < 0 ? BANDS[0] : n <= 182 ? BANDS[1] : n <= 365 ? BANDS[2] : n <= 730 ? BANDS[3] : BANDS[4]; };
+  const ex = m.exclusivity;
+  const exT = table({ rows: ex, sort: "end", dir: 1, csv: "독점종료예정", ph: "품목명, 업체, 성분", text: r => [r[1], r[2], r[6]].join(" "),
+    filters: [{ label: "구분", get: r => r[4], opts: ["재심사", "자료보호"] }, { label: "기간", get: r => band(r[5]), opts: BANDS }],
+    cols: [{ k: "end", t: "종료일", v: r => r[5] }, { k: "d", t: "남은 기간", v: r => daysLeft(r[5]), n: 1, h: r => { const n = daysLeft(r[5]); return n < 0 ? `<span class="muted">${fmt(-n)}일 지남</span>` : `${fmt(n)}일`; } },
+      { k: "kind", t: "구분", v: r => r[4] + (r[7] ? ` (${r[7]})` : "") }, { k: "n", t: "품목", v: r => r[1], h: r => linkDrug(r[0], r[1]) }, { k: "e", t: "업체", v: r => r[2], h: r => linkCo(r[3], r[2]) },
+      { k: "ing", t: "주성분", v: r => r[6], clip: 1 }, { k: "st", t: "상태", v: r => r[8], h: r => statusTag(r[8]) }] });
+  const cntBand = b => ex.filter(r => band(r[5]) === b).length;
+
+  const tb = tabs([
+    { t: `성분 (${fmt(m.ingredients.length)})`, html: `<div class="notice small">주성분이 같은 품목끼리 묶었습니다(허가 상세의 주성분 기준, 복합제는 성분 조합 전체가 같은 경우만 같은 묶음). 성분명을 누르면 품목 목록과 생산 상위 업체가 열립니다.</div>` + ing.html + srcline(["drug_permit_detail", "production_import"]) + '<div id="mk-ingr"></div>', bind: ing.bind },
+    { t: `ATC 시장 (${fmt(m.atc.length)})`, html: `<div class="notice small">ATC 코드 앞 4자리(3단계, 예: C10A)로 묶은 시장입니다. 3단계 이름은 공공데이터에 없어 1단계 대분류 이름만 표시합니다. 코드를 누르면 상세가 열립니다.</div>` + atc.html + srcline(["drug_permit_detail", "production_import"]) + '<div id="mk-atc"></div>', bind: atc.bind },
+    { t: "품목 순위", html: `<div class="grid2">${panel(`${esc(ly)} 생산 상위 품목`, rP.html, "백만원 기준")}${panel(`${esc(ly)} 수입 상위 품목`, rI.html, "달러 기준")}${panel(`생산 급성장 품목 (${esc(py)}→${esc(ly)})`, rU.html, `${esc(py)} 생산 10억원 이상 품목만`)}${panel(`생산 급감 품목 (${esc(py)}→${esc(ly)})`, rD.html, `${esc(py)} 생산 10억원 이상 품목만`)}</div>` + srcline(["production_import"], "한 품목을 여러 곳이 보고한 경우 합산"), bind() { rP.bind(); rI.bind(); rU.bind(); rD.bind(); } },
+    { t: `신약·희귀 (${fmt(nrRows.length)})`, html: `<div class="kpis">${kpi("신약", fmt(nd.length), `유효 ${fmt(nd.filter(isAct).length)}`)}${kpi("희귀의약품", fmt(rd.length), `유효 ${fmt(rd.filter(isAct).length)}`)}</div>
+      <div class="grid2">${panel("연도별 허가 (2000년 이후)", lineChart(yrs, [{ n: "신약", v: byYear(nd), c: "var(--accent)" }, { n: "희귀의약품", v: byYear(rd), c: "var(--warn)" }], { label: "연도별 신약·희귀 허가" }))}
+      ${panel("신약 보유 상위 업체", barChart(coTop(nd)))}</div>` + panel("목록", nrT.html) + srcline(["drug_permit_detail"], "신약 구분·희귀의약품 여부는 허가 상세 기준"), bind: nrT.bind },
+    { t: `독점 종료 예정 (${fmt(ex.length)})`, html: `<div class="notice small">재심사 기간 종료일과 자료보호 종료일을 기준으로, 최근 1년 안에 끝났거나 앞으로 끝나는 품목입니다. 종료 뒤에는 같은 성분 후발 의약품의 허가 신청이 쉬워질 수 있습니다(제도 해석은 식약처 기준 확인 필요).</div>
+      <div class="kpis">${BANDS.slice(0, 4).map(b => kpi(b, fmt(cntBand(b)))).join("")}</div>` + exT.html + srcline(["drug_permit_detail"], "재심사 기간·자료보호 종료일"), bind: exT.bind },
+  ]);
+  const html = head("성분·시장", "분석", ["drug_permit_detail", "production_import"]) + `<div id="mk-root">` + tb.html + `</div>`;
+  return {
+    html, bind() {
+      tb.bind();
+      $("#mk-root").addEventListener("click", e => {
+        const a = e.target.closest("[data-ingr],[data-atc]"); if (!a) return;
+        e.preventDefault();
+        if (a.dataset.ingr != null) {
+          const k = a.dataset.ingr, x = m.ingredients.find(r => r[0] === k);
+          marketDetail("mk-ingr", `성분: ${k}`, di.rows.filter(r => (r[7] || r[8]) === k), x, k);
+        } else {
+          const k = a.dataset.atc, x = m.atc.find(r => r[0] === k);
+          marketDetail("mk-atc", `ATC ${k} (${atcName(k)})`, di.rows.filter(r => (r[9] || "").startsWith(k)), x, "ATC_" + k);
+        }
+      });
+    },
+  };
+};
+
 V.regulation = async () => {
-  const g = await load("regulation.json");
+  const [g, ovs] = await Promise.all([load("regulation.json"), load("overseas.json")]);
   const gt = table({
     rows: g.gmp, sort: "valid", csv: "GMP적합판정", ph: "업체명, 공장 주소, 제형",
     text: r => [r[0], r[3], r[4], r[1]].join(" "),
@@ -670,6 +795,7 @@ V.regulation = async () => {
     ${kpi("해외 제조소", fmt(g.overseas_total), `${g.overseas_country.length}개국 · 수입업체 ${fmt(g.overseas_companies)}곳`)}
     ${kpi("행정처분 (누적)", fmt(g.admins.length), `공개 중 ${fmt(g.admins.length - (g.admin_gone || 0))} · 공개 종료 ${fmt(g.admin_gone || 0)}`)}
   </div>
+  ${panel("해외 제조소 분포 지도", worldMap(ovs.rows), "점 하나 = 같은 위치(위·경도 1도 단위)의 제조소 묶음, 크기 = 제조소 수")}
   <div class="grid2">
     ${panel("해외 제조소 국가별 (상위 15)", barChart(g.overseas_country.slice(0, 15).map(x => ({ k: x[0], v: x[1] }))) + srcline(["overseas_mfr"]))}
     ${panel("연도별 행정처분 (처분확정일 기준)", colChart(g.admin_year.map(x => x[0]), g.admin_year.map(x => x[1]), { c: "var(--fg3)", label: "연도별 행정처분" }) + srcline(["admin_action"], "API는 공개 기간이 남은 처분만 주지만, 이 사이트는 공개 종료분도 계속 보관"))}

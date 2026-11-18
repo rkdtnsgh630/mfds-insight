@@ -55,7 +55,9 @@ class ExportTests(unittest.TestCase):
         put(con, run_id, "drug_permit_detail", {"ITEM_SEQ": "202600001", "ATC_CODE": "N02BE01",
                                                  "NEWDRUG_CLASS_NAME": "신약", "RARE_DRUG_YN": "N",
                                                  "MAIN_ITEM_INGR": "[M1]아세트아미노펜", "PRDUCT_TYPE": "[01140]해열진통소염제",
-                                                 "EE_DOC_ID": "https://nedrug.mfds.go.kr/x"}, "202600001")
+                                                 "EE_DOC_ID": "https://nedrug.mfds.go.kr/x",
+                                                 "REEXAM_DATE": "2023-08-25~2027-08-24", "REEXAM_TARGET": "재심사대상(4년)",
+                                                 "CNSGN_MANUF": "나제약(주)"}, "202600001")
         put(con, run_id, "company_list", {"BIZRNO": "1234567890", "ENTRPS": "가제약주식회사", "INDUTY": "의약품",
                                            "PRMISN_DT": "19800101", "ADRES": "충청북도 음성군", "PRMISN_NO": "1"}, "h:1")
         put(con, run_id, "company_list", {"BIZRNO": "1234567890", "ENTRPS": "가제약주식회사", "INDUTY": "의약외품",
@@ -136,6 +138,13 @@ class ExportTests(unittest.TestCase):
         idx = load("drugs_index.json")
         row = dict(zip(idx["cols"], idx["rows"][0] if idx["rows"][0][0] == "202600001" else idx["rows"][1]))
         self.assertEqual((row["atc"], row["flags"], row["ingr_kr"]), ("N02BE01", "N", "아세트아미노펜"))
+        mk = load("markets.json")
+        self.assertEqual(mk["ingredients"][0][:4], ["아세트아미노펜", 1, 1, 1])
+        self.assertEqual(mk["ingredients"][0][4], 201.0)  # 성분별 최신 연도 생산 합계
+        self.assertEqual(mk["atc"][0][0], "N02B")
+        self.assertEqual([x[5] for x in mk["exclusivity"]], ["2027-08-24"])  # 재심사 종료일
+        self.assertEqual(mk["top_p"][0][0], "202600001")
+        self.assertEqual(det["outsourced"], [["202600001", "가정", "나제약(주)", "정상"]])  # 위탁 품목
         stats = load("stats.json")
         self.assertEqual(stats["prod_year"]["p"], [201.0])
         self.assertEqual(stats["prod_dup"], {"groups": 1, "p": 100.5, "i": 0})  # 같은 금액 2건

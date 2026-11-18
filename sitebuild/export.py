@@ -167,6 +167,7 @@ class Exporter:
                 "change_hist": cut(v(d, "GBN_NAME"), 4000), "reexam": v(d, "REEXAM_TARGET"),
                 "reexam_date": v(d, "REEXAM_DATE"), "ingr_eng": v(d, "MAIN_INGR_ENG"),
                 "doc_ee": v(d, "EE_DOC_ID"), "doc_ud": v(d, "UD_DOC_ID"), "doc_nb": v(d, "NB_DOC_ID"),
+                "protect_end": ymd(v(d, "DATA_PROTECT_END_DATE")),
                 "has_detail": bool(d),
             }
 
@@ -285,7 +286,8 @@ class Exporter:
         overseas = []
         for r in P["overseas_mfr"]:
             overseas.append([v(r, "BSSH_NM"), biz(v(r, "BIZRNO")), v(r, "MFTR_NM"), v(r, "NATN_CD_NM"),
-                             cut(v(r, "MFTR_ADDR"), 120), v(r, "MFTR_PRMSN_NO"), ST(r)])
+                             cut(v(r, "MFTR_ADDR"), 120), v(r, "MFTR_PRMSN_NO"), ST(r),
+                             num(v(r, "MFTR_LATD")), num(v(r, "MFTR_LGTD"))])  # [7][8] 좌표 (지도용)
         for row in gmps:
             if row[1]:
                 by_biz[row[1]]["gmp"].append([row[2], row[3], row[4], row[5], row[6]])
@@ -382,6 +384,101 @@ class Exporter:
                                     "years": {y: {"p": round(d["p"], 3), "i": round(d["i"], 3)} for y, d in sorted(ys.items())}}
                                for es, ys in prod_site.get(b, {}).items()} if len(prod_site.get(b, {})) > 1 else {},
             }
+
+        # ---------- 위탁제조 관계 (허가 상세 CNSGN_MANUF: 수탁 제조업체 '이름'만 있음) ----------
+        # 사업자번호가 없으므로 업체로 확정 연결하지 않는다. 수탁 쪽은 '상호가 정확히 같은 경우'만 참고로 보여 준다.
+        norm = lambda s: re.sub(r"\s+", "", s or "")
+        cn_by_name = defaultdict(list)
+        for sh in drug_detail.values():
+            for seq, d in sh.items():
+                cn = d.get("cnsgn", "")
+                r0 = d["row"]
+                if not cn:
+                    continue
+                for part in [x.strip() for x in re.split(r"[,/]", cn) if x.strip()]:
+                    cn_by_name[norm(part)].append([seq, r0[1], r0[2], r0[3], r0[6]])
+                if r0[3] in company_detail[shard(r0[3])]:
+                    company_detail[shard(r0[3])][r0[3]].setdefault("outsourced", []).append([seq, r0[1], cn, r0[6]])
+        for sh, comps in company_detail.items():
+            for b, c in comps.items():
+                inbound, seen = [], set()
+                for n in c["names"]:
+                    for x in cn_by_name.get(norm(n), []):
+                        if x[0] not in seen and x[3] != b:
+                            seen.add(x[0])
+                            inbound.append(x)
+                c["contracted_in"] = inbound[:300]
+                c["contracted_in_total"] = len(inbound)
+                c["outsourced"] = c.get("outsourced", [])[:300]
+
+        # ---------- 성분·ATC 시장·품목 순위·독점 종료 예정 ----------
+        item_amt = defaultdict(lambda: defaultdict(lambda: {"p": 0.0, "i": 0.0}))
+        for seq, ys in prod_item.items():
+            for y, lst in ys.items():
+                for x in lst:
+                    item_amt[seq][y]["p" if x[0] == "생산" else "i"] += x[1]
+        prev_year = years[-2] if len(years) > 1 else ""
+        amt = lambda seq, y, k: item_amt[seq][y][k] if seq in item_amt and y in item_amt[seq] else 0.0
+
+        def market(keyf):
+            agg = {}
+            for r in drugs:
+                k = keyf(r)
+                if not k:
+                    continue
+                a = agg.setdefault(k, {"n": 0, "act": 0, "cos": set(), "p": 0.0, "i": 0.0, "bp": Counter()})
+                a["n"] += 1
+                if r[6] == "정상" and "G" not in r[10]:
+                    a["act"] += 1
+                if r[3]:
+                    a["cos"].add(r[3])
+                p, i = amt(r[0], latest_year, "p"), amt(r[0], latest_year, "i")
+                a["p"] += p
+                a["i"] += i
+                if r[3] and p:
+                    a["bp"][r[3]] += p
+            return [[k, a["n"], a["act"], len(a["cos"]), round(a["p"], 1), round(a["i"]),
+                     [[b, cname_all.get(b, ""), round(x, 1)] for b, x in a["bp"].most_common(3)]]
+                    for k, a in sorted(agg.items(), key=lambda kv: -kv[1]["n"])]
+
+        cname_all = {c[0]: c[1] for c in companies}
+        ingredients = market(lambda r: r[7] or r[8])
+        atc_market = market(lambda r: (r[9][:4] if len(r[9]) >= 4 else r[9]) if r[9] else "")
+
+        def top_items(k, n=50):
+            rows = [(r, amt(r[0], latest_year, k), amt(r[0], prev_year, k)) for r in drugs if amt(r[0], latest_year, k) > 0]
+            rows.sort(key=lambda x: -x[1])
+            return [[r[0], r[1], r[2], r[3], round(a, 1), round(b, 1)] for r, a, b in rows[:n]]
+
+        def growth(k, up=True, n=30, base=1000.0):
+            # 기준 금액이 너무 작은 품목은 증감률이 왜곡되므로 전년 base(백만원) 이상만
+            rows = []
+            for r in drugs:
+                a, b = amt(r[0], latest_year, k), amt(r[0], prev_year, k)
+                if b >= base:
+                    rows.append((r, a, b, (a - b) / b * 100))
+            rows.sort(key=lambda x: -x[3] if up else x[3])
+            return [[r[0], r[1], r[2], r[3], round(a, 1), round(b, 1), round(g, 1)] for r, a, b, g in rows[:n]]
+
+        horizon = (as_of_dt - timedelta(days=365)).strftime("%Y-%m-%d")
+        exclusivity = []
+        for sh in drug_detail.values():
+            for seq, d in sh.items():
+                r0 = d["row"]
+                ends = []
+                m = re.findall(r"\d{4}-\d{2}-\d{2}", d.get("reexam_date", ""))
+                if m:
+                    ends.append(("재심사", m[-1], d.get("reexam", "")))
+                if d.get("protect_end"):
+                    ends.append(("자료보호", d["protect_end"], ""))
+                for kind, end, note in ends:
+                    if end >= horizon:
+                        exclusivity.append([seq, r0[1], r0[2], r0[3], kind, end, r0[7] or r0[8], note, r0[6]])
+        exclusivity.sort(key=lambda x: x[5])
+
+        markets = {"latest": latest_year, "prev": prev_year, "ingredients": ingredients, "atc": atc_market,
+                   "atc1": ATC1, "top_p": top_items("p"), "top_i": top_items("i"),
+                   "grow_up": growth("p", True), "grow_down": growth("p", False), "exclusivity": exclusivity}
 
         # ---------- 통계 ----------
         permit_year = Counter(row[4][:4] for row in drugs if row[4])
@@ -526,6 +623,7 @@ class Exporter:
         self.write("regulation.json", regulation)
         self.write("overseas.json", {"cols": ["company", "bizrno", "mftr", "country", "addr", "no"], "rows": overseas})
         self.write("supply.json", supply)
+        self.write("markets.json", markets)
         self.write("changes.json", {"rows": changes, "baseline": baseline})
         for sh, d in drug_detail.items():
             self.write(f"drugs/{sh}.json", d)
