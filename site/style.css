@@ -179,3 +179,6 @@ a.per:hover .pn{color:var(--accent)}
 .drill:hover rect:not([fill="transparent"]),.drill:focus rect:not([fill="transparent"]){opacity:.8}
 .drill:focus{outline:none}
 .drill:focus-visible rect[fill="transparent"]{stroke:var(--accent);stroke-width:1.5}
+/* 업체 비교 강조 (동아제약) */
+#cmp tr.hl td{background:var(--accent-bg);font-weight:600}
+.chip.hl{border-color:var(--accent);background:var(--accent-bg);font-weight:600}

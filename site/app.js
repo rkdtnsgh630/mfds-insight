@@ -111,8 +111,8 @@ function lineSvg(W, xs, series, o, all) {
   series.forEach(s => {
     const pts = s.v.map((v, i) => `${x(i)},${y(v || 0)}`).join(" ");
     if (s.area) g += `<polygon points="${x(0)},${y(0)} ${pts} ${x(s.v.length - 1)},${y(0)}" fill="${s.c}" opacity=".12"/>`;
-    g += `<polyline points="${pts}" fill="none" stroke="${s.c}" stroke-width="2.2" stroke-linejoin="round"/>`;
-    s.v.forEach((v, i) => { g += `<circle cx="${x(i)}" cy="${y(v || 0)}" r="${i === s.v.length - 1 ? 4 : 2.5}" fill="${s.c}" stroke="var(--panel)" stroke-width="1.5"><title>${esc(xs[i])} ${esc(s.n || "")}: ${esc(o.vf ? o.vf(v) : fmt(v))}</title></circle>`; });
+    g += `<polyline points="${pts}" fill="none" stroke="${s.c}" stroke-width="${s.w || 2.2}" stroke-linejoin="round" opacity="${s.op || 1}"/>`;
+    s.v.forEach((v, i) => { g += `<circle cx="${x(i)}" cy="${y(v || 0)}" r="${(i === s.v.length - 1 ? 4 : 2.5) * (s.w > 3 ? 1.3 : 1)}" fill="${s.c}" opacity="${s.op || 1}" stroke="var(--panel)" stroke-width="1.5"><title>${esc(xs[i])} ${esc(s.n || "")}: ${esc(o.vf ? o.vf(v) : fmt(v))}</title></circle>`; });
   });
   return `<svg viewBox="0 0 ${W} ${H}" width="100%" height="${H}" role="img" aria-label="${esc(o.label || "시계열 그래프")}">${g}</svg>`;
 }
@@ -600,14 +600,16 @@ V.stats = async () => {
   const pct = (v, tot) => tot ? (v / tot * 100).toFixed(2) + "%" : "–";
   async function renderCmp() {
     const box = $("#cmp-body");
-    $("#cmp-chips").innerHTML = sel.map((b, i) => `<span class="chip" style="--c:${COLORS[i]}">${esc(coName.get(b) || fmtBiz(b))}<button type="button" data-b="${esc(b)}" aria-label="${esc(coName.get(b) || b)} 빼기">×</button></span>`).join("");
+    $("#cmp-chips").innerHTML = sel.map((b, i) => `<span class="chip${b === DEFAULT_CO ? " hl" : ""}" style="--c:${COLORS[i]}">${esc(coName.get(b) || fmtBiz(b))}<button type="button" data-b="${esc(b)}" aria-label="${esc(coName.get(b) || b)} 빼기">×</button></span>`).join("");
     document.querySelectorAll("#cmp-chips button").forEach(btn => btn.addEventListener("click", () => { sel.splice(sel.indexOf(btn.dataset.b), 1); renderCmp(); }));
     if (!sel.length) { box.innerHTML = empty("비교할 업체를 추가하세요."); return; }
     const det = await Promise.all(sel.map(b => load(`companies/${shard(b)}.json`).then(d => d[b] || { prod: {}, name: coName.get(b) })));
-    const ser = k => det.map((c, i) => ({ n: c.name || coName.get(sel[i]), c: COLORS[i], v: p.x.map(y => (c.prod[y] && c.prod[y][k]) || 0) }));
+    // 동아제약은 굵은 선으로 강조, 나머지는 옅게
+    const hl = b => b === DEFAULT_CO;
+    const ser = k => det.map((c, i) => ({ n: (c.name || coName.get(sel[i])) + (hl(sel[i]) ? " ★" : ""), c: COLORS[i], w: hl(sel[i]) ? 4 : 1.8, op: hl(sel[i]) ? 1 : 0.55, v: p.x.map(y => (c.prod[y] && c.prod[y][k]) || 0) }));
     const sp = ser("p"), si = ser("i");
     const growth = v => { const f = v.findIndex(x => x > 0); const l = v[v.length - 1]; return f >= 0 && f < v.length - 1 && v[f] > 0 ? `${((l / v[f] - 1) * 100).toFixed(0)}% (${p.x[f]}→${ly})` : "–"; };
-    const rows = det.map((c, i) => `<tr><td><span class="sw" style="--c:${COLORS[i]}"></span>${linkCo(sel[i], c.name || coName.get(sel[i]))}</td>
+    const rows = det.map((c, i) => `<tr${hl(sel[i]) ? ' class="hl"' : ""}><td><span class="sw" style="--c:${COLORS[i]}"></span>${linkCo(sel[i], c.name || coName.get(sel[i]))}</td>
       <td class="n">${sp[i].v[lyIdx] ? wonM(sp[i].v[lyIdx]) : "–"}</td><td class="n">${pct(sp[i].v[lyIdx], p.p[lyIdx])}</td><td class="n">${growth(sp[i].v)}</td>
       <td class="n">${si[i].v[lyIdx] ? usd(si[i].v[lyIdx]) : "–"}</td><td class="n">${pct(si[i].v[lyIdx], p.i[lyIdx])}</td></tr>`).join("");
     box.innerHTML = `<div class="grid2">
