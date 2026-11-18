@@ -145,7 +145,7 @@ class Exporter:
                 "type": v(r, "PRDUCT_TYPE"), "edi": v(r, "EDI_CODE"), "cnsgn": v(d, "CNSGN_MANUF"),
                 "narcotic": v(d, "NARCOTIC_KIND_CODE"), "chart": cut(v(d, "CHART"), 300),
                 "storage": v(d, "STORAGE_METHOD"), "valid": v(d, "VALID_TERM"), "pack": cut(v(d, "PACK_UNIT"), 200),
-                "material": cut(v(d, "MATERIAL_NAME"), 400), "change_date": ymd(v(d, "CHANGE_DATE")),
+                "material": cut(v(d, "MATERIAL_NAME"), 4000),  # 화면에서 성분 표로 풀어 보여 주므로 넉넉히 "change_date": ymd(v(d, "CHANGE_DATE")),
                 "change_hist": cut(v(d, "GBN_NAME"), 400), "reexam": v(d, "REEXAM_TARGET"),
                 "reexam_date": v(d, "REEXAM_DATE"), "ingr_eng": v(d, "MAIN_INGR_ENG"),
                 "doc_ee": v(d, "EE_DOC_ID"), "doc_ud": v(d, "UD_DOC_ID"), "doc_nb": v(d, "NB_DOC_ID"),

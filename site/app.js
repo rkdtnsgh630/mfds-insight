@@ -394,9 +394,28 @@ V.drug = async seq => {
   const years = Object.keys(prod);
   const tl = (rows, f) => rows && rows.length ? `<div class="timeline">${rows.map(f).join("")}</div>` : empty();
   const tr = (dt, tag, body) => `<div class="r"><span class="when">${esc(dt)}</span><span>${tag}</span><span>${body}</span></div>`;
-  const doc = (u, t) => u ? `<a class="btn" href="${esc(u)}" target="_blank" rel="noopener">${t}</a>` : "";
+  // API가 주는 문서 주소는 전부 대문자(HTTPS://NEDRUG.MFDS.GO.KR/PBP/CMN/PDFDOWNLOAD/...)인데 서버는 경로 대소문자를 구분해 404가 난다.
+  // 확인된 형식(/pbp/cmn/pdfDownload/{품목기준코드}/{EE|UD|NB}, 2026-11-18 응답 200)으로 바꿔 연결한다.
+  const docUrl = u => {
+    const m = String(u || "").match(/PDFDOWNLOAD\/(\d+)\/([A-Z]+)/i);
+    return m ? `https://nedrug.mfds.go.kr/pbp/cmn/pdfDownload/${m[1]}/${m[2].toUpperCase()}` : "";
+  };
+  const doc = (u, t) => docUrl(u) ? `<a class="btn" href="${esc(docUrl(u))}" target="_blank" rel="noopener">${t}</a>` : "";
+  // 원료·분량: 성분은 ';', 항목은 '|', 항목은 '이름 : 값' 형식
+  const mats = String(d.material || "").split(";").map(chunk => {
+    const o = {};
+    chunk.split("|").forEach(p => { const i = p.indexOf(":"); if (i > 0) o[p.slice(0, i).trim()] = p.slice(i + 1).trim(); });
+    return o;
+  }).filter(o => o["성분명"]);
+  const matTotal = [...new Set(mats.map(o => o["총량"]).filter(Boolean))].join(" / ");
+  const matCut = String(d.material || "").endsWith("…");
+  const matTable = mats.length ? `<div class="tbl-wrap"><table><thead><tr><th>성분명</th><th class="n">분량</th><th>단위</th><th>규격</th><th>비고</th></tr></thead><tbody>${mats.map(o =>
+    `<tr><td class="wrap">${esc(o["성분명"])}</td><td class="n">${esc(o["분량"] || "")}</td><td>${esc(o["단위"] || "")}</td><td>${esc(o["규격"] || "")}</td><td class="wrap muted">${esc((o["성분정보"] || "").replace(/…$/, ""))}</td></tr>`).join("")}</tbody></table></div>`
+    + (matCut ? `<div class="srcline">일부 성분만 표시됩니다. 전체 원료는 아래 '의약품안전나라에서 보기'에서 확인하세요.</div>` : "") : "";
   const field = (t, v) => `<div><dt>${t}</dt><dd>${v || '<span class="muted">–</span>'}</dd></div>`;
   const prodRows = years.flatMap(y => prod[y].map(p => [y, p[0], p[1]]));
+  const sumBy = part => years.map(y => prod[y].filter(p => p[0] === part).reduce((s, p) => s + p[1], 0));
+  const pP = sumBy("생산"), pI = sumBy("수입");
   const html = head(esc(r[1]) + (r[10].includes("N") ? ' <span class="flag">신약</span>' : "") + (r[10].includes("R") ? ' <span class="flag r">희귀</span>' : ""),
     `<a class="link" href="#drugs">의약품</a> / 품목 상세`, ["drug_permit", "drug_permit_detail"], ["drug_permit", "production_import", "recall_drug", "supply_suspend", "supply_shortage", "admin_action"]) + `
   <dl class="idgrid">
@@ -419,17 +438,17 @@ V.drug = async seq => {
     ${field("유효기간", esc(d.valid))}
     ${field("포장단위", esc(d.pack))}
     ${field("성상", esc(d.chart))}
-    ${field("원료·분량", esc((d.material || "").replace(/\|/g, " · ")))}
     ${field("최근 변경일 · 변경 내용", `${esc(d.change_date)}${d.change_hist ? `<div class="muted small">${esc(d.change_hist)}</div>` : ""}`)}
   </dl>
-  ${d.doc_ee || d.doc_ud || d.doc_nb ? panel("허가 문서 (식약처 원문)", `<div class="docs">${doc(d.doc_ee, "효능·효과")}${doc(d.doc_ud, "용법·용량")}${doc(d.doc_nb, "사용상 주의사항")}</div><div class="srcline">문서 본문은 저장하지 않고 식약처가 제공하는 원문 링크로 연결합니다.</div>`) : ""}
+  ${mats.length ? panel(`원료·분량 (${mats.length}개 성분)`, matTable, matTotal ? `총량 ${esc(matTotal)}` : "") : ""}
+  ${panel("허가 문서 (식약처 원문)", `<div class="docs">${doc(d.doc_ee, "효능·효과 (PDF)")}${doc(d.doc_ud, "용법·용량 (PDF)")}${doc(d.doc_nb, "사용상 주의사항 (PDF)")}<a class="btn" href="https://nedrug.mfds.go.kr/pbp/CCBBB01/getItemDetail?itemSeq=${esc(r[0])}" target="_blank" rel="noopener">의약품안전나라에서 보기</a></div><div class="srcline">문서 본문은 저장하지 않고 식약처 의약품안전나라 원문으로 연결합니다.</div>`)}
   <div class="grid2">
     ${panel(`회수·판매중지 (${(rel.recall || []).length})`, tl(rel.recall, x => tr(x[0], x[2] === "Y" ? `<span class="pill p-bad">강제</span>` : `<span class="pill p-mute">강제 아님</span>`, esc(x[1]))) + srcline(["recall_drug"]))}
     ${panel(`공급중단 신고 (${(rel.suspend || []).length})`, tl(rel.suspend, x => tr(x[0], `<span class="pill p-warn">${esc(x[1] || "중단")}</span>`, `중단일 ${esc(x[2] || "–")} · ${esc(x[4])}<div class="muted small">${esc(x[3])}</div>`)) + srcline(["supply_suspend"]))}
     ${panel(`공급부족 신고 (${(rel.shortage || []).length})`, tl(rel.shortage, x => tr(x[0], `<span class="pill p-warn">부족</span>`, `${esc(x[3])}<div class="muted small">${esc(x[1])}</div>`)) + srcline(["supply_shortage"]))}
     ${panel(`행정처분 (${(rel.admin || []).length})`, tl(rel.admin, x => tr(x[0], `<span class="pill p-mute">${esc(x[1])}</span>`, esc(x[2]))) + srcline(["admin_action"]))}
   </div>
-  ${panel("연도별 생산·수입실적", prodRows.length ? `<div class="tbl-wrap"><table><thead><tr><th>연도</th><th>구분</th><th class="n">금액</th></tr></thead><tbody>${prodRows.map(p => `<tr><td>${esc(p[0])}</td><td>${esc(p[1])}</td><td class="n">${p[1] === "생산" ? wonM(p[2]) : usd(p[2])}</td></tr>`).join("")}</tbody></table></div>` : empty("생산·수입실적 기록이 없습니다."), "생산 백만원 · 수입 달러")}`;
+  ${prodRows.length ? `<div class="grid2">${pP.some(v => v) ? panel("연도별 생산실적", colChart(years, pP, { vf: wonM, label: "연도별 생산실적" }) + srcline(["production_import"], "금액 단위 백만원")) : ""}${pI.some(v => v) ? panel("연도별 수입실적", colChart(years, pI, { c: "var(--accent2)", vf: usd, tf: v => v >= 1e8 ? (v / 1e8) + "억" : v >= 1e4 ? fmt(v / 1e4) + "만" : fmt(v), label: "연도별 수입실적" }) + srcline(["production_import"], "금액 단위 달러")) : ""}</div>` : panel("연도별 생산·수입실적", empty("생산·수입실적 기록이 없습니다."))}`;
   return { html };
 };
 
