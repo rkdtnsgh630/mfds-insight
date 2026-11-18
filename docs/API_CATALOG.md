@@ -304,3 +304,20 @@
 - 요청변수 전체 목록, 응답 전체 필드 (상세 명세 펼침 필요)
 - 실제 응답 구조, 전체 건수, 페이지 크기 제한, 호출 제한 횟수 (실제 호출 필요)
 - 목록 상세 49개 ID의 명세 전체
+
+## E-5. 제품허가 상세 요청변수 실측 (2026-11-18, Actions probe run 44208814923)
+
+공식 명세(data.go.kr 15095677 Swagger)의 상세 오퍼레이션 요청변수: `item_name`, `entp_name`, `item_permit_date`, `entp_no`, `bar_code`, `item_seq`, `start_change_date`, `end_change_date`, `edi_code`, `atc_code`, `bizrno`, `rare_drug_yn`, `main_item_ingr`.
+
+| 시험 | 결과 |
+|---|---|
+| `start_change_date=20261101`, `end_change_date=20261118` | **동작함.** 326건, CHANGE_DATE 20261102~20261117 (범위 안만 반환) |
+| 같은 기간을 `YYYY-MM-DD`로 | 0건 → 형식은 **YYYYMMDD만** |
+| `start_change_date`만 지정 | 326건 (끝 날짜 생략 가능) |
+| 2026-10-01~10-31 | 1,130건 → 한 달 약 1,100건, 하루 수십 건 변경 |
+| `item_seq=195500005` | **동작함.** 1건, 약 2초 |
+| `item_permit_date=2026` | 1,248건이지만 CHANGE_DATE 빈 값 365건 등 의미 불명확 → **추가검증필요**, 사용 안 함 |
+| 응답 크기 | 상세 100건 1,441KB (목록 100건 64KB의 약 22배). 변경 품목 326건은 100,572KB (건당 약 300KB) |
+| 큰 필드 (상세 100건) | `NB_DOC_DATA`(사용상 주의사항 문서) **73.3%**, `UD_DOC_DATA`(용법용량) 6.8%, `GBN_NAME`(변경 이력 문자열) 5.8%, `EE_DOC_DATA`(효능효과) 3.6% |
+
+확인 못 한 것: 신규 허가 품목에도 CHANGE_DATE가 채워지는지 (허가일 시험에서 빈 값이 있었음). → 신규 품목은 목록에서 새 ITEM_SEQ를 찾아 `item_seq`로 따로 받는 방식으로 대비.
