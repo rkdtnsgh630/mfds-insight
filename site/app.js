@@ -485,6 +485,13 @@ V.stats = async () => {
   const ti = s.top_import.map(x => ({ k: x[1] || fmtBiz(x[0]), v: x[2], href: "#company/" + x[0] }));
   const html = head("산업 통계", "분석", ["production_import", "drug_permit", "drug_permit_detail"]) + `
   <div class="notice small">생산·수입실적은 연간 자료입니다. 생산은 <b>백만원</b>, 수입은 <b>달러</b> 단위(공식 명세)라 합치지 않고 따로 보여 줍니다. 집계 건수는 API가 돌려준 행 수이며, 2020년은 다른 해보다 행이 많이 제공됩니다(원자료 그대로). 한 품목을 여러 업체·허가(업)가 따로 보고한 경우는 모두 합산합니다.${s.prod_dup && s.prod_dup.groups ? ` 이 중 같은 품목·연도에 <b>같은 금액</b>이 두 곳 이상에서 보고된 ${fmt(s.prod_dup.groups)}건(생산 ${wonM(s.prod_dup.p)}, 수입 ${usd(s.prod_dup.i)})은 중복일 수 있으나 판단 근거가 없어 그대로 합산했습니다.` : ""}</div>
+  <section class="panel filterbar">
+    <label for="st-q">회사 기준으로 보기</label>
+    <input id="st-q" type="search" list="cmp-list" placeholder="회사를 고르면 아래 그래프가 그 회사 기준으로 바뀝니다" autocomplete="off">
+    <button class="btn" id="st-clear" type="button">업계 전체</button>
+    <span class="muted small" id="st-info">업계 전체 기준</span>
+  </section>
+  <div id="st-main" style="display:flex;flex-direction:column;gap:18px"></div>
   <section class="panel" id="cmp">
     <div class="ph"><div><h2>업체 비교</h2><div class="src">업계 전체 대비 연도별 생산·수입실적과 비중 · 최대 5곳 · 처음에는 ${esc(s.latest_year)}년 생산 상위 3곳</div></div></div>
     <div class="filters">
@@ -495,19 +502,69 @@ V.stats = async () => {
     </div>
     <div id="cmp-body"><div class="loading">불러오는 중…</div></div>
   </section>
-  <div class="grid2">
-    ${panel("연도별 의약품 생산실적", colChart(p.x, p.p, { vf: wonM, tf: v => v >= 1e6 ? (v / 1e6) + "조" : fmt(v / 100) + "억", label: "연도별 생산실적" }) + srcline(["production_import"], `행 수 ${p.np.map(fmt).join(" / ")}`))}
-    ${panel("연도별 의약품 수입실적", colChart(p.x, p.i, { c: "var(--accent2)", vf: usd, tf: v => (v / 1e8).toFixed(0) + "억$", label: "연도별 수입실적" }) + srcline(["production_import"], `행 수 ${p.ni.map(fmt).join(" / ")}`))}
+`;
+
+  // ---- 아래 그래프: 업계 전체 또는 선택한 회사 기준 ----
+  const tfP = v => v >= 1e6 ? (v / 1e6) + "조" : fmt(v / 100) + "억";
+  const tfI = v => v >= 1e8 ? (v / 1e8).toFixed(0) + "억$" : v >= 1e4 ? fmt(v / 1e4) + "만$" : fmt(v);
+  function industryHtml() {
+    return `<div class="grid2">
+    ${panel("연도별 의약품 생산실적", colChart(p.x, p.p, { vf: wonM, tf: tfP, label: "연도별 생산실적" }) + srcline(["production_import"], `행 수 ${p.np.map(fmt).join(" / ")}`))}
+    ${panel("연도별 의약품 수입실적", colChart(p.x, p.i, { c: "var(--accent2)", vf: usd, tf: tfI, label: "연도별 수입실적" }) + srcline(["production_import"], `행 수 ${p.ni.map(fmt).join(" / ")}`))}
     ${panel(`${esc(s.latest_year)}년 생산실적 상위 업체`, barChart(tp, { vf: wonM }) + srcline(["production_import"]))}
     ${panel(`${esc(s.latest_year)}년 수입실적 상위 업체`, barChart(ti, { vf: usd, c: "var(--accent2)" }) + srcline(["production_import"]))}
   </div>
-  ${panel("연도별 신규 허가·신고 품목과 취하 등", lineChart(py.x, [{ n: "허가", v: py["허가"], c: "var(--accent)" }, { n: "신고", v: py["신고"], c: "var(--accent2)" }, { n: "취하·만료·취소 (취하일 기준)", v: py.cancel, c: "var(--bad)" }], { label: "연도별 허가와 취하" }) + srcline(["drug_permit"], "허가일자·취하일자 기준, 현재 조회되는 품목만 포함"))}
+  ${panel("연도별 신규 허가·신고 품목과 취하 등", lineChart(py.x, [{ n: "허가", v: py["허가"], c: "var(--accent)" }, { n: "신고", v: py["신고"], c: "var(--accent2)" }, { n: "취하·만료·취소 (취하일 기준)", v: py.cancel, c: "var(--bad)" }], { label: "연도별 허가와 취하" }) + srcline(["drug_permit"], "허가일자·취하일자 기준"))}
   <div class="grid2">
     ${panel("유효 품목의 ATC 대분류", barChart(s.atc.map(x => ({ k: x[0] === "미상" ? "ATC 없음" : `${x[0]} ${x[1]}`, v: x[2] }))) + srcline(["drug_permit_detail"]))}
     ${panel("유효 품목의 분류 (상위 15)", barChart(s.ptype.map(x => ({ k: x[0], v: x[1] }))) + srcline(["drug_permit"]))}
     ${panel("유효 품목 전문/일반", barChart(s.spc.map(x => ({ k: x[0] + "의약품", v: x[1] }))) + srcline(["drug_permit"]))}
     ${panel("전체 품목 상태", barChart(s.status.map(x => ({ k: x[0], v: x[1] }))) + srcline(["drug_permit"]))}
   </div>`;
+  }
+  const ATC_NAME = Object.fromEntries(s.atc.map(x => [x[0], x[1]]));
+  async function companyHtml(b) {
+    const [shardData, di] = await Promise.all([load(`companies/${shard(b)}.json`), load("drugs_index.json")]);
+    const c = shardData[b] || { prod: {}, name: coName.get(b) };
+    const nm = c.name || coName.get(b) || fmtBiz(b);
+    const cp = p.x.map(y => (c.prod[y] && c.prod[y].p) || 0), cim = p.x.map(y => (c.prod[y] && c.prod[y].i) || 0);
+    const ly = s.latest_year, li = p.x.indexOf(ly);
+    const rankOf = k => { const sorted = ci.rows.filter(r => r[k] > 0).sort((x, y) => y[k] - x[k]); const i = sorted.findIndex(r => r[0] === b); return i >= 0 ? `${fmt(i + 1)}위 / ${fmt(sorted.length)}개사` : "순위 없음"; };
+    const mine = di.rows.filter(r => r[3] === b);
+    const yr = py.x;
+    const cnt = (f) => yr.map(y => mine.filter(f(y)).length);
+    const active = mine.filter(r => r[6] === "정상" && !r[10].includes("G"));
+    const tally = (rows, f) => { const m = {}; rows.forEach(r => { const k = f(r); m[k] = (m[k] || 0) + 1; }); return Object.entries(m).sort((x, y) => y[1] - x[1]); };
+    const atc = tally(active, r => r[9] ? r[9][0] : "미상").map(([k, n]) => ({ k: k === "미상" ? "ATC 없음" : `${k} ${ATC_NAME[k] || ""}`, v: n }));
+    const spc = tally(active, r => r[5] || "미상").map(([k, n]) => ({ k: k === "미상" ? "미상" : k + "의약품", v: n }));
+    const st = tally(mine, r => r[6] || "미상").map(([k, n]) => ({ k, v: n }));
+    return `<div class="kpis">
+      ${kpi(`${esc(ly)} 생산실적`, cp[li] ? wonM(cp[li]) : "–", `업계 비중 ${p.p[li] ? (cp[li] / p.p[li] * 100).toFixed(2) + "%" : "–"} · ${rankOf(5)}`, "#company/" + b)}
+      ${kpi(`${esc(ly)} 수입실적`, cim[li] ? usd(cim[li]) : "–", `업계 비중 ${p.i[li] ? (cim[li] / p.i[li] * 100).toFixed(2) + "%" : "–"} · ${rankOf(6)}`)}
+      ${kpi("유효 허가 품목", fmt(active.length), `전체 ${fmt(mine.length)}개`)}
+    </div>
+    <div class="grid2">
+      ${panel(`${esc(nm)} · 연도별 생산실적`, colChart(p.x, cp, { vf: wonM, tf: tfP, label: "연도별 생산실적" }) + srcline(["production_import"], "금액 단위 백만원"))}
+      ${panel(`${esc(nm)} · 연도별 수입실적`, colChart(p.x, cim, { c: "var(--accent2)", vf: usd, tf: tfI, label: "연도별 수입실적" }) + srcline(["production_import"], "금액 단위 달러"))}
+    </div>
+    ${panel(`${esc(nm)} · 연도별 신규 허가·신고와 취하 등`, lineChart(yr, [
+      { n: "허가", v: cnt(y => r => (r[4] || "").startsWith(y) && r[11] === "허가"), c: "var(--accent)" },
+      { n: "신고", v: cnt(y => r => (r[4] || "").startsWith(y) && r[11] === "신고"), c: "var(--accent2)" },
+      { n: "취하·만료·취소 (취하일 기준)", v: cnt(y => r => (r[12] || "").startsWith(y)), c: "var(--bad)" }], { label: "연도별 허가와 취하" }) + srcline(["drug_permit"], "허가일자·취하일자 기준"))}
+    <div class="grid2">
+      ${panel(`${esc(nm)} · 유효 품목의 ATC 대분류`, barChart(atc) + srcline(["drug_permit_detail"]))}
+      ${panel(`${esc(nm)} · 유효 품목 전문/일반`, barChart(spc) + srcline(["drug_permit"]))}
+      ${panel(`${esc(nm)} · 전체 품목 상태`, barChart(st) + srcline(["drug_permit"]))}
+      ${panel("품목 분류", `<div class="empty">분류(효능군)는 업계 전체 기준으로만 집계합니다. 이 회사 품목은 <a class="link" href="#company/${esc(b)}">업체 상세</a>에서 볼 수 있습니다.</div>`)}
+    </div>`;
+  }
+  async function renderMain(b) {
+    const box = $("#st-main");
+    box.innerHTML = b ? '<div class="loading">불러오는 중…</div>' : "";
+    box.innerHTML = b ? await companyHtml(b) : industryHtml();
+    $("#st-info").textContent = b ? `${coName.get(b) || fmtBiz(b)} 기준` : "업계 전체 기준";
+    drawCharts(box);
+  }
 
   // ---- 업체 비교 ----
   const COLORS = ["var(--accent)", "var(--bad)", "var(--warn)", "var(--ok)", "var(--fg2)"];
@@ -545,6 +602,10 @@ V.stats = async () => {
   return {
     html, bind() {
       $("#cmp-add").addEventListener("click", addCo);
+      const stq = $("#st-q");
+      stq.addEventListener("change", () => { const m = stq.value.match(/\((\d{3}-\d{2}-\d{5})\)\s*$/); if (m) renderMain(m[1].replace(/-/g, "")); else if (!stq.value.trim()) renderMain(""); else toast("목록에서 회사를 골라 주세요."); });
+      $("#st-clear").addEventListener("click", () => { stq.value = ""; renderMain(""); });
+      renderMain("");
       $("#cmp-q").addEventListener("change", () => { if (/\(\d{3}-\d{2}-\d{5}\)\s*$/.test($("#cmp-q").value)) addCo(); });
       renderCmp();
     },
