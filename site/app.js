@@ -156,29 +156,78 @@ function barSvg(W, items, o) {
   return `<svg viewBox="0 0 ${W} ${H}" width="100%" height="${H}" role="img" aria-label="${esc(o.label || "막대그래프")}">${g}</svg>`;
 }
 
-// 세계 분포 점 지도 (해안선 데이터 없이 위·경도 격자 위에 점만 그림: 정방위 원통 투영)
-function worldMap(rows) {
-  const pts = rows.filter(r => typeof r[7] === "number" && typeof r[8] === "number" && Math.abs(r[7]) <= 90 && Math.abs(r[8]) <= 180 && !(r[7] === 0 && r[8] === 0));
-  if (!pts.length) return empty("좌표가 들어간 데이터가 아직 없습니다. 다음 데이터 갱신(매일 03:00 수집 후)부터 표시됩니다.");
-  const cells = {};
-  pts.forEach(r => { const k = Math.round(r[7]) + "," + Math.round(r[8]); const c = cells[k] || (cells[k] = { lat: Math.round(r[7]), lng: Math.round(r[8]), n: 0, cn: {} }); c.n++; c.cn[r[3]] = (c.cn[r[3]] || 0) + 1; });
-  const byC = {};
-  pts.forEach(r => { const c = byC[r[3]] || (byC[r[3]] = { n: 0, lat: 0, lng: 0 }); c.n++; c.lat += r[7]; c.lng += r[8]; });
-  const topC = Object.entries(byC).sort((a, b) => b[1].n - a[1].n).slice(0, 10);
-  const mx = Math.max(...Object.values(cells).map(c => c.n));
-  return deferChart(W => {
-    const H = Math.round(W * 0.5), x = lng => (lng + 180) / 360 * W, y = lat => (90 - lat) / 180 * H;
-    let g = `<rect x="0" y="0" width="${W}" height="${H}" fill="var(--mute-bg)" rx="6"/>`;
-    for (let lng = -150; lng <= 150; lng += 30) g += `<line x1="${x(lng)}" x2="${x(lng)}" y1="0" y2="${H}" stroke="var(--line)"/>`;
-    for (let lat = -60; lat <= 60; lat += 30) g += `<line x1="0" x2="${W}" y1="${y(lat)}" y2="${y(lat)}" stroke="var(--line)"/><text x="4" y="${y(lat) - 3}">${lat === 0 ? "적도" : (lat > 0 ? "북위 " : "남위 ") + Math.abs(lat) + "°"}</text>`;
-    Object.values(cells).sort((a, b) => b.n - a.n).forEach(c => {
-      const r = Math.max(1.6, Math.sqrt(c.n / mx) * W / 60);
-      const top = Object.entries(c.cn).sort((a, b) => b[1] - a[1]).map(([k, n]) => `${k} ${fmt(n)}`).slice(0, 3).join(", ");
-      g += `<circle cx="${x(c.lng)}" cy="${y(c.lat)}" r="${r}" fill="var(--accent)" fill-opacity=".45" stroke="var(--accent)" stroke-width=".8"><title>위도 ${c.lat}° 경도 ${c.lng}° 부근: 제조소 ${fmt(c.n)}곳 (${esc(top)})</title></circle>`;
-    });
-    topC.forEach(([name, c]) => { const cx = x(c.lng / c.n), cy = y(c.lat / c.n); g += `<text x="${cx + 6}" y="${cy - 6}" style="fill:var(--fg);font-weight:600;paint-order:stroke;stroke:var(--panel);stroke-width:3px">${esc(name)} ${fmt(c.n)}</text>`; });
-    return `<svg viewBox="0 0 ${W} ${H}" width="100%" height="${H}" role="img" aria-label="해외 제조소 분포 지도">${g}</svg>`;
-  }, `<div class="srcline">좌표가 있는 제조소 ${fmt(pts.length)}곳 · 국가 이름은 상위 10개국의 평균 위치에 표시 · 점에 마우스를 올리면 국가별 수</div>`);
+// ---------- 세계 지도 (국가별 진하기) ----------
+// 공공데이터의 한글 국가명 → ISO 3166-1 숫자 코드 (world.json의 국가 id와 같음)
+const ISO_N = { "중국": "156", "인도": "356", "독일": "276", "이탈리아": "380", "일본": "392", "미국": "840", "프랑스": "250", "스페인": "724", "대만": "158",
+  "스위스": "756", "영국": "826", "네덜란드": "528", "아일랜드": "372", "덴마크": "208", "체코공화국": "203", "오스트리아": "040", "말레이지아": "458", "캐나다": "124",
+  "벨기에": "056", "인도네시아": "360", "싱가포르": "702", "이스라엘": "376", "핀란드": "246", "헝가리": "348", "호주": "036", "폴란드": "616", "스웨덴": "752",
+  "노르웨이": "578", "뉴질랜드": "554", "태국": "764", "루마니아": "642", "멕시코": "484", "베트남": "704", "슬로베니아": "705", "포르투갈": "620", "푸에르토리코": "630",
+  "이란": "364", "아르헨티나": "032", "슬로바키아": "703", "그리스": "300", "브라질": "076", "남아프리카 공화국": "710", "불가리아": "100", "아이슬란드": "352",
+  "크로아티아": "191", "몰타": "470", "라트비아": "428", "튀르키예": "792", "칠레": "152", "중국 홍콩": "344", "러시아 연방": "643", "방글라데시": "050",
+  "사이프러스": "196", "필리핀": "608", "바하마": "044", "벨라루스": "112", "오만": "512", "도미니카 공화국": "214", "리투아니아": "440", "요르단": "400",
+  "이집트": "818", "우즈베키스탄": "860", "코스타리카": "188", "모로코": "504", "우루과이": "858", "세르비아": "688" };
+// TopoJSON(국가 경계) → 국가별 좌표 링. 외부 라이브러리 없이 직접 해석한다.
+function topoFeatures(topo, objName) {
+  const tf = topo.transform, arcs = topo.arcs.map(arc => { let x = 0, y = 0; return arc.map(p => { x += p[0]; y += p[1]; return tf ? [x * tf.scale[0] + tf.translate[0], y * tf.scale[1] + tf.translate[1]] : [p[0], p[1]]; }); });
+  const ring = ids => { let pts = []; ids.forEach(i => { const a = i < 0 ? arcs[~i].slice().reverse() : arcs[i]; pts = pts.concat(pts.length ? a.slice(1) : a); }); return pts; };
+  return topo.objects[objName].geometries.map(g => ({ id: g.id != null ? String(g.id).padStart(3, "0") : "", name: (g.properties || {}).name || "",
+    polys: g.type === "Polygon" ? [g.arcs.map(ring)] : g.type === "MultiPolygon" ? g.arcs.map(p => p.map(ring)) : [] }));
+}
+let WORLD = null;
+async function loadWorld() { if (WORLD === null) { try { const r = await fetch("world.json"); WORLD = r.ok ? topoFeatures(await r.json(), "countries") : false; } catch (e) { WORLD = false; } } return WORLD; }
+// 진하기 단계 (제조소 수)
+const MAP_BINS = [[1, 9], [10, 49], [50, 199], [200, 999], [1000, Infinity]];
+const binOf = n => n ? MAP_BINS.findIndex(([a, b]) => n >= a && n <= b) : -1;
+function choropleth(W, feats, counts, sel) {
+  const H = Math.round(W * 0.5), x = lng => (lng + 180) / 360 * W, y = lat => (90 - lat) / 180 * H;
+  let g = `<rect width="${W}" height="${H}" fill="var(--bg)"/>`;
+  feats.forEach(f => {
+    if (f.name === "Antarctica") return;
+    const d = f.polys.map(poly => poly.map(r => "M" + r.map(p => x(p[0]).toFixed(1) + "," + y(p[1]).toFixed(1)).join("L") + "Z").join("")).join("");
+    const c = counts[f.id] || null, b = c ? binOf(c.n) : -1;
+    const fill = b < 0 ? "var(--mute-bg)" : "var(--accent)";
+    const op = b < 0 ? 1 : [0.18, 0.34, 0.52, 0.72, 0.95][b];
+    g += `<path d="${d}" fill="${fill}" fill-opacity="${op}" stroke="${sel === f.id ? "var(--fg)" : "var(--line2)"}" stroke-width="${sel === f.id ? 1.6 : 0.5}"${c ? ` data-cty="${esc(c.ko)}" style="cursor:pointer"` : ""}><title>${esc(c ? c.ko : f.name)}${c ? `: 제조소 ${fmt(c.n)}곳` : ": 0곳"}</title></path>`;
+  });
+  return `<svg viewBox="0 0 ${W} ${H}" width="100%" height="${H}" role="img" aria-label="국가별 해외 제조소 수 지도">${g}</svg>`;
+}
+async function openWorldMap(rows) {
+  const byKo = {}; rows.forEach(r => { const k = r[3] || "미상"; byKo[k] = (byKo[k] || 0) + 1; });
+  const counts = {}; Object.entries(byKo).forEach(([ko, n]) => { if (ISO_N[ko]) counts[ISO_N[ko]] = { ko, n }; });
+  const list = Object.entries(byKo).sort((a, b) => b[1] - a[1]);
+  const feats = await loadWorld();
+  const shown = feats ? new Set(feats.map(f => f.id)) : new Set();
+  const offMap = list.filter(([ko]) => !ISO_N[ko] || !shown.has(ISO_N[ko]));
+  const dlg = document.createElement("div");
+  dlg.className = "modal"; dlg.setAttribute("role", "dialog"); dlg.setAttribute("aria-modal", "true"); dlg.setAttribute("aria-label", "해외 제조소 세계 지도");
+  dlg.innerHTML = `<div class="modal-box"><div class="ph"><div><h2>해외 제조소 세계 지도</h2><div class="src">국가별 제조소 수를 색의 진하기로 표시 · 나라를 누르면 아래에 그 나라 제조소 목록</div></div><button class="btn" type="button" data-close>닫기</button></div>
+    <div class="modal-map" id="wm-map"></div>
+    <div class="legend map-legend">${MAP_BINS.map(([a, b], i) => `<span><i style="opacity:${[0.18, 0.34, 0.52, 0.72, 0.95][i]}"></i>${fmt(a)}${b === Infinity ? "곳 이상" : "~" + fmt(b) + "곳"}</span>`).join("")}<span><i class="none"></i>없음</span></div>
+    ${offMap.length ? `<div class="srcline">지도에 작게 보이거나 표시되지 않는 곳: ${offMap.map(([k, n]) => `${esc(k)} ${fmt(n)}`).join(", ")}</div>` : ""}
+    <div class="grid2" style="margin-top:12px"><div>${barChart(list.slice(0, 15).map(([k, n]) => ({ k, v: n })), { label: "국가별 제조소 수" })}</div><div id="wm-list">${empty("지도에서 나라를 누르면 그 나라 제조소 목록이 나옵니다.")}</div></div>
+    <div class="srcline">출처: 의약품 해외제조소 · 국가 경계: Natural Earth (world-atlas)</div></div>`;
+  document.body.appendChild(dlg);
+  const prevFocus = document.activeElement;
+  let closed = false;
+  const close = () => { if (closed) return; closed = true; dlg.remove(); document.removeEventListener("keydown", onKey); if (prevFocus) prevFocus.focus(); };
+  const onKey = e => { if (e.key === "Escape") close(); };
+  document.addEventListener("keydown", onKey);
+  dlg.addEventListener("click", e => { if (e.target === dlg || e.target.closest("[data-close]")) close(); });
+  let sel = "";
+  const drawMap = () => {
+    const box = $("#wm-map"), W = Math.max(320, box.clientWidth);
+    box.innerHTML = feats ? choropleth(W, feats, counts, sel) : empty("국가 경계 데이터(world.json)가 아직 없어 지도를 그리지 못했습니다.");
+  };
+  drawMap(); drawCharts(dlg);
+  dlg.querySelector("[data-close]").focus();
+  $("#wm-map").addEventListener("click", e => {
+    const p = e.target.closest("[data-cty]"); if (!p) return;
+    const ko = p.dataset.cty; sel = ISO_N[ko] || ""; drawMap();
+    const t = table({ rows: rows.filter(r => r[3] === ko), sort: "m", dir: 1, csv: `해외제조소_${ko}`, ph: "제조소명, 국내 업체", per: 8, text: r => r.join(" "),
+      cols: [{ k: "m", t: "제조소", v: r => r[2] }, { k: "c", t: "국내 업체", v: r => r[0], h: r => linkCo(r[1], r[0]) }, stCol(6)] });
+    $("#wm-list").innerHTML = `<h3 class="sub">${esc(ko)} · 제조소 ${fmt(byKo[ko])}곳</h3>` + t.html; t.bind();
+  });
+  window.addEventListener("hashchange", close, { once: true });
 }
 
 // ---------- 표 (검색·필터·정렬·페이지·CSV) ----------
@@ -805,7 +854,7 @@ V.regulation = async () => {
     ${kpi("해외 제조소", fmt(g.overseas_total), `${g.overseas_country.length}개국 · 수입업체 ${fmt(g.overseas_companies)}곳`)}
     ${kpi("행정처분 (누적)", fmt(g.admins.length), `공개 중 ${fmt(g.admins.length - (g.admin_gone || 0))} · 공개 종료 ${fmt(g.admin_gone || 0)}`)}
   </div>
-  ${panel("해외 제조소 분포 지도", worldMap(ovs.rows), "점 하나 = 같은 위치(위·경도 1도 단위)의 제조소 묶음, 크기 = 제조소 수")}
+  ${panel("해외 제조소 세계 지도", `<div class="docs"><button class="btn" id="wm-open" type="button">세계 지도 열기 (새 창)</button></div><div class="srcline">국가별 제조소 수를 색의 진하기로 표시합니다. 상위 국가: ${g.overseas_country.slice(0, 5).map(x => `${esc(x[0])} ${fmt(x[1])}`).join(" · ")}</div>`)}
   <div class="grid2">
     ${panel("해외 제조소 국가별 (상위 15)", barChart(g.overseas_country.slice(0, 15).map(x => ({ k: x[0], v: x[1] }))) + srcline(["overseas_mfr"]))}
     ${panel("연도별 행정처분 (처분확정일 기준)", colChart(g.admin_year.map(x => x[0]), g.admin_year.map(x => x[1]), { c: "var(--fg3)", label: "연도별 행정처분" }) + srcline(["admin_action"], "API는 공개 기간이 남은 처분만 주지만, 이 사이트는 공개 종료분도 계속 보관"))}
@@ -818,6 +867,7 @@ V.regulation = async () => {
   return {
     html, bind() {
       gt.bind(); at.bind();
+      $("#wm-open").addEventListener("click", () => openWorldMap(ovs.rows));
       $("#ovs-load").addEventListener("click", async () => {
         $("#ovs-box").innerHTML = '<div class="loading">불러오는 중…</div>';
         const o = await load("overseas.json");
