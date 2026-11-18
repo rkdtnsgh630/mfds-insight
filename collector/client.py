@@ -98,9 +98,9 @@ class Client:
         query = urllib.parse.urlencode({"serviceKey": self.key, **params})
         return BASE_URL + path + "?" + query
 
-    def get_page(self, path, page_no, rows):
-        """한 페이지를 가져와 (totalCount, items)를 돌려준다. 실패 시 ApiError."""
-        url = self._url(path, {"pageNo": page_no, "numOfRows": rows, "type": "json"})
+    def get_page(self, path, page_no, rows, params=None):
+        """한 페이지를 가져와 (totalCount, items)를 돌려준다. params는 추가 요청변수. 실패 시 ApiError."""
+        url = self._url(path, {"pageNo": page_no, "numOfRows": rows, "type": "json", **(params or {})})
         last_error = None
         for attempt in range(self.retries + 1):
             if attempt:

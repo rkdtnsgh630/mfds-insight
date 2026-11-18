@@ -38,11 +38,11 @@ tests/       단위 시험 (네트워크 없이 실행)
 
 | 입력 | 의미 | 기본값 |
 |---|---|---|
-| apis | `tier:core`, `tier:slow`, `tier:hold`, `tier:core+slow`, `all`, 또는 `gmp,dmf`처럼 API id 나열 | `tier:core` |
+| apis | `tier:core`, `tier:hold`, `tier:core+hold`, `all`, 또는 `gmp,dmf`처럼 API id 나열 | `tier:core` |
 | max_pages | API당 최대 페이지. 0이 아니면 시험 실행으로 보고 DB를 게시하지 않음 | `0` |
 | rows | 페이지당 건수 | `500` |
 
-확정된 사이트 화면 7개가 쓰는 11개 중 빠른 `core` 10개는 매일 03:00 KST, 오래 걸리는 `slow`(제품허가 상세, 첫 수집 79분)는 임시로 매월 1일 04:00 KST에 수집한다. `hold`(보류 12개)는 메뉴 채택 시 수동 실행하고, `excluded`(DUR·의약외품·화장품·주성분 상세 등 13개)는 등록만 유지한다. 근거: docs/DASHBOARD_DESIGN.md
+확정된 사이트 화면 7개가 쓰는 `core` 11개를 매일 03:00 KST에 수집한다. 제품허가 상세는 매일은 변경분만(최근 성공일-7일 이후 변경 + 목록의 신규 품목) 받고, 매월 1일 04:00 KST에 전체(`--full`, 결측 점검)를 받는다. 상세의 문서 본문 3종(NB/UD/EE_DOC_DATA)은 저장하지 않는다. `hold`(보류 12개)는 메뉴 채택 시 수동 실행하고, `excluded`(DUR·의약외품·화장품·주성분 상세 등 13개)는 등록만 유지한다. 근거: docs/DASHBOARD_DESIGN.md
 
 ## 문서
 

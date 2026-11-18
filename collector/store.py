@@ -140,6 +140,52 @@ def finish_run(con, run_id, status, api_calls):
     con.commit()
 
 
+def strip_fields(record, fields):
+    if not fields:
+        return record
+    return {k: v for k, v in record.items() if k not in fields}
+
+
+def migrate_dropped_fields(con, api):
+    """drop_fields가 새로 지정된 API의 기존 원본에서 해당 필드를 지운다.
+
+    필드 삭제는 데이터 변경이 아니라 저장 방식 변경이므로 change_log에 남기지 않고
+    해시만 다시 계산한다. 이미 지워진 행은 건드리지 않는다. 바꾼 행 수를 돌려준다.
+    """
+    fields = api.get("drop_fields") or []
+    if not fields:
+        return 0
+    cond = " OR ".join("payload LIKE ?" for _ in fields)
+    args = [api["id"]] + [f'%"{f}":%' for f in fields]
+    rows = con.execute(f"SELECT record_key, payload FROM raw_record WHERE api_id=? AND ({cond})", args).fetchall()
+    for key, payload in rows:
+        text = canonical(strip_fields(json.loads(payload), fields))
+        con.execute("UPDATE raw_record SET payload=?, record_hash=? WHERE api_id=? AND record_key=?",
+                    (text, record_hash(text), api["id"], key))
+    con.commit()
+    return len(rows)
+
+
+def has_complete_run(con, api_id):
+    return con.execute("SELECT 1 FROM collect_api_run WHERE api_id=? AND status='complete' LIMIT 1",
+                       (api_id,)).fetchone() is not None
+
+
+def last_success_started(con, api_id):
+    """최근 성공(완전 또는 증분) 수집의 시작 시각 (UTC 문자열) 또는 None."""
+    return con.execute("SELECT MAX(started_at) FROM collect_api_run WHERE api_id=? AND status IN ('complete','incremental')",
+                       (api_id,)).fetchone()[0]
+
+
+def missing_keys(con, source_api_id, target_api_id, limit):
+    """source에는 현재 있는데 target에는 한 번도 없었던 키 (키 충돌 접미 '#' 제외)."""
+    return [k for (k,) in con.execute(
+        "SELECT record_key FROM raw_record s WHERE s.api_id=? AND s.is_present=1 AND s.record_key NOT LIKE 'h:%'"
+        " AND instr(s.record_key, '#')=0 AND NOT EXISTS (SELECT 1 FROM raw_record t WHERE t.api_id=?"
+        " AND t.record_key=s.record_key) ORDER BY s.record_key LIMIT ?",
+        (source_api_id, target_api_id, limit))]
+
+
 class ApiRun:
     """한 API의 한 번 수집을 기록한다."""
 
@@ -169,7 +215,9 @@ class ApiRun:
     def add_records(self, records):
         now = utcnow()
         con = self.con
+        drop = self.api.get("drop_fields")
         for rec in records:
+            rec = strip_fields(rec, drop)
             text = canonical(rec)
             h = record_hash(text)
             key = build_key(rec, self.api.get("key"), h)
@@ -212,11 +260,14 @@ class ApiRun:
                     self.stats["reappeared"] += 1
                     self._log("reappeared", key, None, text, now)
 
-    def finish(self, complete, total_count, pages, error=None):
+    def finish(self, complete, total_count, pages, error=None, incremental=False, extra_notes=()):
+        """incremental=True: 증분 수집. 오류가 없으면 status='incremental', 결측 판정은 하지 않는다."""
         now = utcnow()
         con = self.con
-        notes = []
-        if complete:
+        notes = list(extra_notes)
+        if incremental and not error:
+            status = "incremental"
+        elif complete:
             missing_count = con.execute(
                 "SELECT COUNT(*) FROM raw_record WHERE api_id=? AND is_present=1 AND last_seen_run<>?",
                 (self.api_id, self.run_id)).fetchone()[0]

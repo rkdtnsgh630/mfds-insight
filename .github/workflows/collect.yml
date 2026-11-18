@@ -2,12 +2,12 @@ name: collect
 
 on:
   schedule:
-    - cron: "0 18 * * *"   # 매일 03:00 KST: tier:core (빠른 10개)
-    - cron: "0 19 1 * *"   # 매월 1일 04:00 KST: tier:slow (제품허가 상세, 임시)
+    - cron: "0 18 * * *"   # 매일 03:00 KST: tier:core 11개 (제품허가 상세는 변경분만)
+    - cron: "0 19 1 * *"   # 매월 1일 04:00 KST: 제품허가 상세 전체 (--full, 결측 점검)
   workflow_dispatch:
     inputs:
       apis:
-        description: "수집 대상 (tier:core | tier:slow | tier:hold | tier:core+slow | all | id1,id2)"
+        description: "수집 대상 (tier:core | tier:hold | tier:core+hold | all | id1,id2)"
         required: false
         default: "tier:core"
       max_pages:
@@ -18,6 +18,11 @@ on:
         description: "페이지당 건수"
         required: false
         default: "500"
+      full:
+        description: "증분 대상(제품허가 상세)도 전체 수집"
+        type: boolean
+        required: false
+        default: false
 
 permissions:
   contents: write
@@ -43,7 +48,8 @@ jobs:
     timeout-minutes: 340
     env:
       GH_TOKEN: ${{ github.token }}
-      APIS: ${{ github.event.inputs.apis || (github.event.schedule == '0 19 1 * *' && 'tier:slow') || 'tier:core' }}
+      APIS: ${{ github.event.inputs.apis || (github.event.schedule == '0 19 1 * *' && 'drug_permit_detail') || 'tier:core' }}
+      FULL: ${{ github.event.inputs.full || (github.event.schedule == '0 19 1 * *' && 'true') || 'false' }}
       MAX_PAGES: ${{ github.event.inputs.max_pages || '0' }}
       ROWS: ${{ github.event.inputs.rows || '500' }}
     steps:
@@ -56,7 +62,8 @@ jobs:
         run: |
           mkdir -p data
           if gh release download data-latest -p mfds.sqlite.gz -D data --repo "$GITHUB_REPOSITORY"; then
-            gunzip -f data/mfds.sqlite.gz
+            gunzip -kf data/mfds.sqlite.gz
+            mv data/mfds.sqlite.gz data/prev.sqlite.gz   # 첫 필드 삭제 전 백업용 (게시 단계)
             echo "이전 DB를 이어서 사용합니다."
           else
             echo "이전 DB가 없습니다 (최초 실행)."
@@ -66,14 +73,11 @@ jobs:
         env:
           MFDS_SERVICE_KEY: ${{ secrets.MFDS_SERVICE_KEY }}
           TRIGGER: ${{ github.event_name }}
-        run: >
-          python -m collector.run
-          --db data/mfds.sqlite
-          --apis "$APIS"
-          --rows "$ROWS"
-          --max-pages "$MAX_PAGES"
-          --trigger "$TRIGGER"
-          --summary data/last_run.json
+        run: |
+          FULL_FLAG=""
+          if [ "$FULL" = "true" ]; then FULL_FLAG="--full"; fi
+          python -m collector.run --db data/mfds.sqlite --apis "$APIS" --rows "$ROWS" \
+            --max-pages "$MAX_PAGES" --trigger "$TRIGGER" --summary data/last_run.json $FULL_FLAG
 
       - name: DB 게시 (Release data-latest)
         if: env.MAX_PAGES == '0'
@@ -83,5 +87,10 @@ jobs:
             gh release create data-latest --repo "$GITHUB_REPOSITORY" --latest=false \
               --title "수집 데이터 (최신)" \
               --notes "GitHub Actions가 갱신하는 SQLite DB(mfds.sqlite.gz)와 최근 실행 요약(last_run.json)입니다."
+          fi
+          # 문서 본문 필드를 지우기 전 DB를 한 번만 보관 (2026-11-18 결정, 필요 시 복원용)
+          if [ -f data/prev.sqlite.gz ] && ! gh release view data-latest --repo "$GITHUB_REPOSITORY" --json assets -q ".assets[].name" | grep -qx "mfds-before-drop-docs.sqlite.gz"; then
+            mv data/prev.sqlite.gz data/mfds-before-drop-docs.sqlite.gz
+            gh release upload data-latest data/mfds-before-drop-docs.sqlite.gz --repo "$GITHUB_REPOSITORY"
           fi
           gh release upload data-latest data/mfds.sqlite.gz data/last_run.json --clobber --repo "$GITHUB_REPOSITORY"

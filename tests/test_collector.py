@@ -7,7 +7,7 @@ import urllib.error
 from collector import client as C
 from collector import store as S
 from collector.apis import APIS, select_apis
-from collector.run import collect_api
+from collector.run import collect_api, since_date
 
 
 def ok_json(items, total=None):
@@ -101,7 +101,7 @@ class FakeClient:
         self.pages = pages
         self.calls = 0
 
-    def get_page(self, path, page_no, rows):
+    def get_page(self, path, page_no, rows, params=None):
         self.calls += 1
         items = self.pages[page_no - 1] if page_no - 1 < len(self.pages) else []
         return sum(len(p) for p in self.pages), items
@@ -163,7 +163,7 @@ class StoreTests(unittest.TestCase):
 
     def test_api_error_recorded(self):
         class Failing(FakeClient):
-            def get_page(self, path, page_no, rows):
+            def get_page(self, path, page_no, rows, params=None):
                 raise C.ApiError("SERVICE_KEY_IS_NOT_REGISTERED_ERROR", code="30")
 
         run_id = S.start_run(self.con, "test", "t")
@@ -172,13 +172,111 @@ class StoreTests(unittest.TestCase):
         self.assertIn("[30]", r["error"])
 
 
+SRC = dict(API, id="src")
+DET = dict(API, id="det", drop_fields=["DOC"],
+           incremental={"since_param": "start_change_date", "lookback_days": 7,
+                        "new_keys_from": "src", "id_param": "item_seq", "max_new": 1})
+
+
+class ParamClient:
+    """요청변수에 따라 다른 응답을 주는 가짜 클라이언트."""
+    key = "fake"
+
+    def __init__(self, changed, by_id, full_pages=()):
+        self.changed, self.by_id, self.full_pages = changed, by_id, list(full_pages)
+        self.requests = []
+        self.calls = 0
+
+    def get_page(self, path, page_no, rows, params=None):
+        self.calls += 1
+        self.requests.append(dict(params or {}))
+        if params and "start_change_date" in params:
+            return len(self.changed), (self.changed if page_no == 1 else [])
+        if params and "item_seq" in params:
+            item = self.by_id.get(params["item_seq"])
+            return (1, [item]) if item else (0, [])
+        items = self.full_pages[page_no - 1] if page_no - 1 < len(self.full_pages) else []
+        return sum(len(p) for p in self.full_pages), items
+
+
+class IncrementalTests(unittest.TestCase):
+    def setUp(self):
+        self.con = S.connect(":memory:")
+
+    def run_api(self, client, api, **kw):
+        run_id = S.start_run(self.con, "test", "t")
+        return collect_api(self.con, client, run_id, api, 10, **kw)
+
+    def payload(self, api_id, key):
+        return json.loads(self.con.execute("SELECT payload FROM raw_record WHERE api_id=? AND record_key=?",
+                                           (api_id, key)).fetchone()[0])
+
+    def test_since_date(self):
+        self.assertEqual(since_date("2026-11-17T22:51:56Z", 7), "20261110")
+        self.assertEqual(since_date("2026-03-02T00:00:00Z", 7), "20260223")
+
+    def test_drop_fields_not_stored(self):
+        r = self.run_api(FakeClient([[{"ID": 1, "v": "a", "DOC": "x" * 100}]]), DET)
+        self.assertEqual(r["status"], "complete")  # 기준선이 없으면 증분이 아니라 전체 수집
+        self.assertEqual(self.payload("det", "1"), {"ID": 1, "v": "a"})
+
+    def test_migrate_existing_payload_without_change_log(self):
+        self.run_api(FakeClient([[{"ID": 1, "v": "a", "DOC": "big"}]]), dict(DET, drop_fields=None))
+        self.assertIn("DOC", self.payload("det", "1"))
+        self.assertEqual(S.migrate_dropped_fields(self.con, DET), 1)
+        self.assertEqual(self.payload("det", "1"), {"ID": 1, "v": "a"})
+        self.assertEqual(S.migrate_dropped_fields(self.con, DET), 0)  # 두 번째는 할 일 없음
+        r = self.run_api(FakeClient([[{"ID": 1, "v": "a", "DOC": "changed"}]]), DET, full=True)
+        self.assertEqual((r["updated"], r["added"]), (0, 0))  # 지운 필드만 바뀐 건 변경 아님
+        self.assertEqual(self.con.execute("SELECT COUNT(*) FROM change_log").fetchone()[0], 0)
+
+    def test_incremental_changes_and_new_keys(self):
+        self.run_api(FakeClient([[{"ID": 1}, {"ID": 2}, {"ID": 3}, {"ID": 4}]]), SRC)
+        self.run_api(FakeClient([[{"ID": 1, "v": "a", "DOC": "d"}, {"ID": 2, "v": "b"}]]), DET)
+        client = ParamClient(changed=[{"ID": 1, "v": "a2", "DOC": "d2"}],
+                             by_id={"3": {"ID": 3, "v": "new"}})
+        r = self.run_api(client, DET)
+        self.assertEqual(r["status"], "incremental")
+        self.assertEqual((r["updated"], r["added"], r["removed"]), (1, 1, 0))
+        self.assertRegex(client.requests[0]["start_change_date"], r"^\d{8}$")
+        self.assertEqual([q.get("item_seq") for q in client.requests[1:]], ["3"])  # max_new=1 → 4는 다음에
+        self.assertIn("한도", r["note"])
+        self.assertEqual(self.payload("det", "1"), {"ID": 1, "v": "a2"})
+        present = self.con.execute("SELECT is_present FROM raw_record WHERE api_id='det' AND record_key='2'").fetchone()
+        self.assertEqual(present, (1,))  # 증분에서는 결측 판정 안 함
+        self.assertEqual(sorted(t for (t,) in self.con.execute("SELECT change_type FROM change_log")),
+                         ["added", "updated"])
+        # 다음 증분의 기준일 계산에 이번 증분도 쓰인다
+        self.assertIsNotNone(S.last_success_started(self.con, "det"))
+
+    def test_full_flag_and_max_pages_skip_incremental(self):
+        self.run_api(FakeClient([[{"ID": 1}]]), DET)
+        client = ParamClient(changed=[], by_id={}, full_pages=[[{"ID": 1}]])
+        self.assertEqual(self.run_api(client, DET, full=True)["status"], "complete")
+        self.assertEqual(client.requests, [{}])
+        client = ParamClient(changed=[], by_id={}, full_pages=[[{"ID": 1}]])
+        self.run_api(client, DET, max_pages=1)
+        self.assertEqual(client.requests, [{}])
+
+    def test_incremental_error_is_not_success(self):
+        self.run_api(FakeClient([[{"ID": 1}]]), DET)
+
+        class Failing(ParamClient):
+            def get_page(self, path, page_no, rows, params=None):
+                raise C.ApiError("boom", code="01")
+
+        r = self.run_api(Failing([], {}), DET)
+        self.assertEqual(r["status"], "failed")
+
+
 class RegistryTests(unittest.TestCase):
     def test_ids_unique_and_selection(self):
         ids = [a["id"] for a in APIS]
         self.assertEqual(len(ids), len(set(ids)))
         self.assertTrue(all(a["tier"] == "core" for a in select_apis("tier:core")))
-        self.assertEqual([a["id"] for a in select_apis("tier:slow")], ["drug_permit_detail"])
-        self.assertEqual(len(select_apis("tier:core+slow")), 11)
+        self.assertEqual(len(select_apis("tier:core")), 11)
+        ids = [a["id"] for a in select_apis("tier:core")]
+        self.assertLess(ids.index("drug_permit"), ids.index("drug_permit_detail"))  # 신규 품목 판단 순서
         self.assertEqual([a["id"] for a in select_apis("gmp,dmf")], ["gmp", "dmf"])
         with self.assertRaises(ValueError):
             select_apis("nope")
