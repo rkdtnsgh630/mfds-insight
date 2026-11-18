@@ -79,6 +79,12 @@ def strip_codes(s):
     return re.sub(r"\[[^\]]*\]", "", s or "").replace("/", ", ").strip(" ,")
 
 
+def ingr_parts(raw):
+    """주성분 문자열을 성분 목록으로: 코드 제거, '|'·'/'로 나눔, 중복 제거, 정렬 (조합 순서가 달라도 같은 묶음)."""
+    s = re.sub(r"\[[^\]]*\]", "", raw or "")
+    return sorted({p.strip(" ,") for p in re.split(r"[|/]", s) if p.strip(" ,")})
+
+
 def shard(key):
     d = re.sub(r"\D", "", key)
     return d[-2:].zfill(2) if d else "00"
