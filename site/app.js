@@ -240,6 +240,16 @@ function changeList(rows) {
   }).join("")}</div>`;
 }
 
+// 목록용 소재지: 업체허가 주소(r[2]) + GMP 공장 지역(r[14])을 시·도+시·군 단위로 합침
+function locList(r) {
+  const out = [];
+  [String(r[2] || "").replace(/\s*외 \d+곳$/, "")].concat(String(r[14] || "").split(" · ")).forEach(a => {
+    const k = a.split(/\s+/).filter(Boolean).slice(0, 2).join(" ");
+    if (k && !out.includes(k)) out.push(k);
+  });
+  return out;
+}
+
 V.companies = async () => {
   const c = await load("companies_index.json"), ly = c.latest_year;
   const t = table({
@@ -250,8 +260,7 @@ V.companies = async () => {
     cols: [
       { k: "name", t: "업체명", v: r => r[1], h: r => linkCo(r[0], r[1]) },
       { k: "biz", t: "사업자번호", v: r => fmtBiz(r[0]) },
-      { k: "region", t: "소재지 (업체허가)", v: r => r[2] },
-      { k: "fac", t: "GMP 공장", v: r => r[14] || "", clip: 1 },
+      { k: "region", t: "소재지 (업체허가·GMP 공장)", v: r => locList(r).join(" · "), h: r => { const l = locList(r); return l.length ? `<span title="${esc(l.join(" · "))}">${esc(l[0])}${l.length > 1 ? ` <span class="muted">외 ${l.length - 1}곳</span>` : ""}</span>` : "–"; } },
       { k: "active", t: "유효 품목", v: r => r[3], n: 1, h: r => fmt(r[3]) },
       { k: "total", t: "전체 품목", v: r => r[4], n: 1, h: r => fmt(r[4]) },
       { k: "prod", t: `생산 ${ly} (백만원)`, v: r => r[5], n: 1, h: r => r[5] ? fmt(r[5]) : "–" },
@@ -289,14 +298,24 @@ V.company = async biz => {
     text: r => r.join(" "),
     cols: [{ k: "m", t: "해외 제조소", v: r => r[0] }, { k: "country", t: "국가", v: r => r[1] }, { k: "no", t: "제조소 번호", v: r => r[2] }],
   });
+  // 소재지 = 업체허가 목록 주소 + GMP 공장 주소 (시·도 + 시·군 단위로 합쳐 중복 제거, 출처 표시)
+  const locs = [];
+  const addLoc = (addr, src) => {
+    const k = String(addr || "").split(/\s+/).filter(Boolean).slice(0, 2).join(" ");
+    if (!k) return;
+    let e = locs.find(x => x.k === k); if (!e) { e = { k, src: [] }; locs.push(e); }
+    if (!e.src.includes(src)) e.src.push(src);
+  };
+  (c.regions && c.regions.length ? c.regions : [c.region]).forEach(a => addLoc(a, c.region_from_admin ? "행정처분" : "업체허가"));
+  c.gmp.forEach(g => addLoc(g[2], "GMP 공장"));
   const html = head(esc(c.name), `<a class="link" href="#companies">제약회사</a> / 업체 상세`, []) + `
-  <dl class="idgrid">
+  <dl class="idgrid co">
     <div><dt>사업자등록번호</dt><dd>${esc(fmtBiz(biz))}</dd></div>
-    <div><dt>소재지 (${c.region_from_admin ? "행정처분 기록" : "업체허가 목록"})</dt><dd>${(c.regions && c.regions.length ? c.regions : [c.region]).filter(Boolean).map(esc).join("<br>") || "–"}</dd></div>
-    <div><dt>업종·허가 (허가별 소재지)</dt><dd>${c.licenses.length ? c.licenses.map(l => `${esc(l[0])} <span class="muted small">(${esc(l[1] || "–")}${l[3] ? " · " + esc(l[3]) : ""})</span>`).join("<br>") : '<span class="muted">업체허가 목록에 없음</span>'}</dd></div>
-    <div style="grid-column:1/-1"><dt>GMP 적합판정 공장 (${c.gmp.length}건 · ${(c.factories || []).length}개 지역)</dt><dd>${c.gmp.length ? c.gmp.map(g => `${esc(g[2] || "주소 없음")} <span class="muted small">· ${esc(g[0])}${g[1] ? " · " + esc(g[1]) : ""} · 유효 ~${esc(g[3] || "–")}</span>`).join("<br>")
-      + (c.gmp.length < 2 ? "" : `<div class="muted small" style="margin-top:4px">공공데이터상 이 공장들은 모두 사업자번호 ${esc(fmtBiz(biz))} 하나로 등록되어 있어, 공장별 회수·처분도 이 업체 기록에 함께 모입니다.</div>`) : '<span class="muted">GMP 발급 기록 없음</span>'}</dd></div>
-    <div><dt>수집 데이터에 쓰인 상호</dt><dd>${c.names.map(esc).join(", ")}</dd></div>
+    <div><dt>소재지 (${locs.length}곳)</dt><dd>${locs.length ? locs.map(l => `${esc(l.k)} <span class="muted small">${esc(l.src.join("·"))}</span>`).join("<br>") : "–"}</dd></div>
+    <div><dt>업종·허가</dt><dd>${c.licenses.length ? c.licenses.map(l => `${esc(l[0])} <span class="muted small">${esc(l[1] || "")}</span>`).join("<br>") : '<span class="muted">업체허가 목록에 없음</span>'}</dd></div>
+    <div><dt>수집 데이터에 쓰인 상호</dt><dd>${c.names.map(esc).join("<br>")}</dd></div>
+    <div class="full"><dt>GMP 적합판정 공장 (${c.gmp.length}건)</dt><dd>${c.gmp.length ? c.gmp.map(g => `${esc(g[2] || "주소 없음")} <span class="muted small">· ${esc(g[0])}${g[1] ? " · " + esc(g[1]) : ""} · 유효 ~${esc(g[3] || "–")}</span>`).join("<br>")
+      + (c.gmp.length < 2 ? "" : `<p class="muted small note">공장 ${c.gmp.length}곳 모두 사업자번호 ${esc(fmtBiz(biz))} 하나로 등록되어 있어, 공장별 회수·처분 기록도 이 업체에 함께 모입니다.</p>`) : '<span class="muted">GMP 발급 기록 없음</span>'}</dd></div>
   </dl>
   <div class="kpis">
     ${kpi("유효 허가 품목", fmt(active), `전체 ${fmt(c.items.length)}개`)}

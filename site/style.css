@@ -145,3 +145,9 @@ td.wrap{overflow-wrap:anywhere}
 td.clip{max-width:260px;overflow:hidden;text-overflow:ellipsis}
 .kpi .v{overflow-wrap:anywhere}
 @media (max-width:900px){.kpi .v{font-size:20px}.kpis{grid-template-columns:repeat(auto-fit,minmax(140px,1fr))}.filters input{min-width:0;flex-basis:100%;max-width:none}}
+/* 업체 상세 정보 표: 4열 고정, GMP 공장은 전체 너비 */
+.idgrid.co{grid-template-columns:repeat(4,minmax(0,1fr))}
+.idgrid.co > div.full{grid-column:1/-1;border-right:0}
+.idgrid .note{margin:6px 0 0;padding:0;border:0}
+@media (max-width:900px){.idgrid.co{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:520px){.idgrid.co{grid-template-columns:minmax(0,1fr)}}
