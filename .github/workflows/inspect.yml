@@ -3,6 +3,11 @@ name: inspect
 # 게시된 수집 DB의 필드 구성을 점검한다. 수동 실행만. API 호출·DB 변경 없음.
 on:
   workflow_dispatch:
+    inputs:
+      check:
+        description: "점검 종류 (fields: 필드 점검, dups: 생산·수입 키 중복 비교)"
+        required: false
+        default: "fields"
 
 permissions:
   contents: read
@@ -24,4 +29,8 @@ jobs:
           gh release download data-latest -p mfds.sqlite.gz -D data --repo "$GITHUB_REPOSITORY"
           gunzip -f data/mfds.sqlite.gz
       - name: 필드 점검
+        if: github.event.inputs.check != 'dups'
         run: python -m sitebuild.inspect_db --db data/mfds.sqlite --summary "$GITHUB_STEP_SUMMARY"
+      - name: 생산·수입 키 중복 비교
+        if: github.event.inputs.check == 'dups'
+        run: python -m sitebuild.dup_check --db data/mfds.sqlite --summary "$GITHUB_STEP_SUMMARY"
