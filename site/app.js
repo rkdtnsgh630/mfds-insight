@@ -496,7 +496,7 @@ V.stats = async () => {
   </section>
   <div id="st-main" style="display:flex;flex-direction:column;gap:18px"></div>
   <section class="panel" id="cmp">
-    <div class="ph"><div><h2>업체 비교</h2><div class="src">업계 전체 대비 연도별 생산·수입실적과 비중 · 최대 5곳 · 처음에는 ${esc(s.latest_year)}년 생산 상위 3곳</div></div></div>
+    <div class="ph"><div><h2>업체 비교</h2><div class="src">업계 전체 대비 연도별 생산·수입실적과 비중 · 최대 5곳 · 처음에는 동아제약과 ${esc(s.latest_year)}년 생산 상위 3곳</div></div></div>
     <div class="filters">
       <input id="cmp-q" type="search" list="cmp-list" placeholder="업체명을 입력해 목록에서 고르기" autocomplete="off" aria-label="비교할 업체">
       <datalist id="cmp-list">${coOpts}</datalist>
@@ -593,7 +593,9 @@ V.stats = async () => {
 
   // ---- 업체 비교 ----
   const COLORS = ["var(--accent)", "var(--bad)", "var(--warn)", "var(--ok)", "var(--fg2)"];
-  const sel = s.top_prod.slice(0, 3).map(x => x[0]);
+  // 기본 비교 대상: 동아제약(사용자 요청) + 생산 상위 3곳
+  const DEFAULT_CO = "2048100130";
+  const sel = [DEFAULT_CO, ...s.top_prod.map(x => x[0]).filter(b => b !== DEFAULT_CO).slice(0, 3)];
   const ly = s.latest_year, lyIdx = p.x.indexOf(ly);
   const pct = (v, tot) => tot ? (v / tot * 100).toFixed(2) + "%" : "–";
   async function renderCmp() {
