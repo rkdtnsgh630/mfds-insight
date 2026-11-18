@@ -159,3 +159,15 @@ td.clip{max-width:260px;overflow:hidden;text-overflow:ellipsis}
 .periods b{font-weight:500;color:var(--fg);font-variant-numeric:tabular-nums}
 .periods .ps{color:var(--fg3);font-size:11px}
 @media (max-width:520px){.periods .per{white-space:normal}}
+/* 필터 막대·업체 비교 칩 */
+.filterbar{display:flex;flex-wrap:wrap;gap:8px 10px;align-items:center}
+.filterbar label{font-family:var(--f-head);font-weight:600;font-size:14px}
+.filterbar input{font:inherit;font-size:13px;height:36px;border:1px solid var(--line2);border-radius:7px;background:var(--panel);color:var(--fg);padding:0 10px;flex:1;min-width:240px;max-width:520px}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;border:1px solid var(--line2);border-radius:999px;padding:2px 4px 2px 10px;background:var(--panel)}
+.chip::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--c)}
+.chip button{all:unset;cursor:pointer;width:20px;height:20px;border-radius:50%;text-align:center;line-height:20px;color:var(--fg3)}
+.chip button:hover{background:var(--mute-bg);color:var(--fg)}
+.chip button:focus-visible{outline:2px solid var(--accent)}
+.sw{display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--c);margin-right:6px}
+@media (max-width:520px){.filterbar input{min-width:0;flex-basis:100%}}

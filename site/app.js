@@ -461,11 +461,25 @@ V.drug = async seq => {
 };
 
 V.stats = async () => {
-  const s = await load("stats.json"), p = s.prod_year, py = s.permit_year;
+  const [s, ci] = await Promise.all([load("stats.json"), load("companies_index.json")]);
+  const p = s.prod_year, py = s.permit_year;
+  const coName = new Map(ci.rows.map(r => [r[0], r[1]]));
+  const coOpts = ci.rows.filter(r => r[5] || r[6]).sort((a, b) => a[1].localeCompare(b[1], "ko"))
+    .map(r => `<option value="${esc(r[1])} (${esc(fmtBiz(r[0]))})"></option>`).join("");
   const tp = s.top_prod.map(x => ({ k: x[1] || fmtBiz(x[0]), v: x[2], href: "#company/" + x[0] }));
   const ti = s.top_import.map(x => ({ k: x[1] || fmtBiz(x[0]), v: x[2], href: "#company/" + x[0] }));
   const html = head("산업 통계", "분석", ["production_import", "drug_permit", "drug_permit_detail"]) + `
   <div class="notice small">생산·수입실적은 연간 자료입니다. 생산은 <b>백만원</b>, 수입은 <b>달러</b> 단위(공식 명세)라 합치지 않고 따로 보여 줍니다. 집계 건수는 API가 돌려준 행 수이며, 2020년은 다른 해보다 행이 많이 제공됩니다(원자료 그대로).</div>
+  <section class="panel" id="cmp">
+    <div class="ph"><div><h2>업체 비교</h2><div class="src">업계 전체 대비 연도별 생산·수입실적과 비중 · 최대 5곳 · 처음에는 ${esc(s.latest_year)}년 생산 상위 3곳</div></div></div>
+    <div class="filters">
+      <input id="cmp-q" type="search" list="cmp-list" placeholder="업체명을 입력해 목록에서 고르기" autocomplete="off" aria-label="비교할 업체">
+      <datalist id="cmp-list">${coOpts}</datalist>
+      <button class="btn" id="cmp-add" type="button">추가</button>
+      <span class="chips" id="cmp-chips"></span>
+    </div>
+    <div id="cmp-body"><div class="loading">불러오는 중…</div></div>
+  </section>
   <div class="grid2">
     ${panel("연도별 의약품 생산실적", colChart(p.x, p.p, { vf: wonM, tf: v => v >= 1e6 ? (v / 1e6) + "조" : fmt(v / 100) + "억", label: "연도별 생산실적" }) + srcline(["production_import"], `행 수 ${p.np.map(fmt).join(" / ")}`))}
     ${panel("연도별 의약품 수입실적", colChart(p.x, p.i, { c: "var(--accent2)", vf: usd, tf: v => (v / 1e8).toFixed(0) + "억$", label: "연도별 수입실적" }) + srcline(["production_import"], `행 수 ${p.ni.map(fmt).join(" / ")}`))}
@@ -479,7 +493,47 @@ V.stats = async () => {
     ${panel("유효 품목 전문/일반", barChart(s.spc.map(x => ({ k: x[0] + "의약품", v: x[1] }))) + srcline(["drug_permit"]))}
     ${panel("전체 품목 상태", barChart(s.status.map(x => ({ k: x[0], v: x[1] }))) + srcline(["drug_permit"]))}
   </div>`;
-  return { html };
+
+  // ---- 업체 비교 ----
+  const COLORS = ["var(--accent)", "var(--bad)", "var(--warn)", "var(--ok)", "var(--fg2)"];
+  const sel = s.top_prod.slice(0, 3).map(x => x[0]);
+  const ly = s.latest_year, lyIdx = p.x.indexOf(ly);
+  const pct = (v, tot) => tot ? (v / tot * 100).toFixed(2) + "%" : "–";
+  async function renderCmp() {
+    const box = $("#cmp-body");
+    $("#cmp-chips").innerHTML = sel.map((b, i) => `<span class="chip" style="--c:${COLORS[i]}">${esc(coName.get(b) || fmtBiz(b))}<button type="button" data-b="${esc(b)}" aria-label="${esc(coName.get(b) || b)} 빼기">×</button></span>`).join("");
+    document.querySelectorAll("#cmp-chips button").forEach(btn => btn.addEventListener("click", () => { sel.splice(sel.indexOf(btn.dataset.b), 1); renderCmp(); }));
+    if (!sel.length) { box.innerHTML = empty("비교할 업체를 추가하세요."); return; }
+    const det = await Promise.all(sel.map(b => load(`companies/${shard(b)}.json`).then(d => d[b] || { prod: {}, name: coName.get(b) })));
+    const ser = k => det.map((c, i) => ({ n: c.name || coName.get(sel[i]), c: COLORS[i], v: p.x.map(y => (c.prod[y] && c.prod[y][k]) || 0) }));
+    const sp = ser("p"), si = ser("i");
+    const growth = v => { const f = v.findIndex(x => x > 0); const l = v[v.length - 1]; return f >= 0 && f < v.length - 1 && v[f] > 0 ? `${((l / v[f] - 1) * 100).toFixed(0)}% (${p.x[f]}→${ly})` : "–"; };
+    const rows = det.map((c, i) => `<tr><td><span class="sw" style="--c:${COLORS[i]}"></span>${linkCo(sel[i], c.name || coName.get(sel[i]))}</td>
+      <td class="n">${sp[i].v[lyIdx] ? wonM(sp[i].v[lyIdx]) : "–"}</td><td class="n">${pct(sp[i].v[lyIdx], p.p[lyIdx])}</td><td class="n">${growth(sp[i].v)}</td>
+      <td class="n">${si[i].v[lyIdx] ? usd(si[i].v[lyIdx]) : "–"}</td><td class="n">${pct(si[i].v[lyIdx], p.i[lyIdx])}</td></tr>`).join("");
+    box.innerHTML = `<div class="grid2">
+        <div>${lineChart(p.x, sp, { vf: wonM, tf: v => v >= 1e6 ? (v / 1e6) + "조" : fmt(v / 100) + "억", label: "업체별 생산실적" })}<div class="srcline">연도별 생산실적 (백만원)</div></div>
+        <div>${lineChart(p.x, si, { vf: usd, tf: v => v >= 1e8 ? (v / 1e8) + "억$" : v >= 1e4 ? fmt(v / 1e4) + "만$" : fmt(v), label: "업체별 수입실적" })}<div class="srcline">연도별 수입실적 (달러)</div></div>
+      </div>
+      <div class="tbl-wrap" style="margin-top:12px"><table><thead><tr><th>업체</th><th class="n">${esc(ly)} 생산</th><th class="n">업계 비중</th><th class="n">생산 증감</th><th class="n">${esc(ly)} 수입</th><th class="n">업계 비중</th></tr></thead><tbody>${rows}</tbody></table></div>`
+      + srcline(["production_import"], `업계 비중 = 해당 연도 업계 전체 생산(${wonM(p.p[lyIdx])}) 또는 수입(${usd(p.i[lyIdx])}) 대비`);
+    drawCharts(box);
+  }
+  function addCo() {
+    const m = $("#cmp-q").value.match(/\((\d{3}-\d{2}-\d{5})\)\s*$/);
+    if (!m) { toast("목록에서 업체를 골라 주세요."); return; }
+    const b = m[1].replace(/-/g, "");
+    if (sel.includes(b)) { toast("이미 추가된 업체입니다."); return; }
+    if (sel.length >= 5) { toast("최대 5곳까지 비교할 수 있습니다."); return; }
+    sel.push(b); $("#cmp-q").value = ""; renderCmp();
+  }
+  return {
+    html, bind() {
+      $("#cmp-add").addEventListener("click", addCo);
+      $("#cmp-q").addEventListener("change", () => { if (/\(\d{3}-\d{2}-\d{5}\)\s*$/.test($("#cmp-q").value)) addCo(); });
+      renderCmp();
+    },
+  };
 };
 
 V.regulation = async () => {
@@ -534,38 +588,85 @@ V.regulation = async () => {
 
 V.supply = async () => {
   const s = await load("supply.json"), t = s.trend;
-  const rt = table({ rows: s.recalls, sort: "date", csv: "회수판매중지", ph: "제품명, 업체명, 사유", text: r => [r[1], r[2], r[5]].join(" "),
-    filters: [{ label: "강제 여부", get: r => r[6] === "Y" ? "강제" : "강제 아님", opts: ["강제", "강제 아님"] }],
-    cols: [{ k: "date", t: "회수명령일", v: r => r[0] }, { k: "p", t: "제품", v: r => r[1], h: r => linkDrug(r[4], r[1]) },
-      { k: "e", t: "업체", v: r => r[2], h: r => linkCo(r[3], r[2]) }, { k: "why", t: "사유", v: r => r[5], wrap: 1 }, { k: "f", t: "강제 여부", v: r => r[6] === "Y" ? "강제" : "강제 아님" }] });
-  const st = table({ rows: s.suspends, sort: "date", csv: "공급중단", ph: "제품명, 업체명, 사유", text: r => [r[1], r[2], r[7]].join(" "),
-    filters: [{ label: "구분", get: r => r[5], opts: [...new Set(s.suspends.map(r => r[5]))] }, { label: "처리상태", get: r => r[8], opts: s.suspend_status.map(x => x[0]) }],
-    cols: [{ k: "date", t: "신고일", v: r => r[0] }, { k: "p", t: "제품", v: r => r[1], h: r => linkDrug(r[4], r[1]) },
-      { k: "e", t: "업체", v: r => r[2], h: r => linkCo(r[3], r[2]) }, { k: "f", t: "구분", v: r => r[5] }, { k: "sd", t: "중단(예정)일", v: r => r[6] },
-      { k: "why", t: "사유", v: r => r[7], wrap: 1 }, { k: "s", t: "처리상태", v: r => r[8] }] });
-  const sh = table({ rows: s.shortages, sort: "date", csv: "공급부족", ph: "제품명, 업체명, 사유", text: r => [r[1], r[2], r[5]].join(" "),
-    filters: [{ label: "처리상태", get: r => r[7], opts: s.shortage_status.map(x => x[0]) }],
-    cols: [{ k: "date", t: "신고일", v: r => r[0] }, { k: "p", t: "제품", v: r => r[1], h: r => linkDrug(r[4], r[1]) },
-      { k: "e", t: "업체", v: r => r[2], h: r => linkCo(r[3], r[2]) }, { k: "why", t: "부족 사유", v: r => r[5], wrap: 1 },
-      { k: "plan", t: "공급 예정일", v: r => r[6] }, { k: "s", t: "처리상태", v: r => r[7] }, { k: "alt", t: "대체 가능 여부·조치", v: r => r[8], wrap: 1 }] });
-  const lt = table({ rows: s.letters, sort: "date", csv: "안전성서한", ph: "제목, 내용", text: r => [r[1], r[4], r[2]].join(" "),
-    cols: [{ k: "date", t: "공고일", v: r => r[0] }, { k: "t", t: "제목", v: r => r[1], h: r => r[3] ? `<a class="link" href="${esc(r[3])}" target="_blank" rel="noopener">${esc(r[1])}</a>` : esc(r[1]), wrap: 1 },
-      { k: "c", t: "내용", v: r => r[4], wrap: 1 }, { k: "d", t: "담당 부서", v: r => r[2] }] });
-  const tb = tabs([
-    { t: `회수·판매중지 (${fmt(s.recalls.length)})`, html: rt.html + srcline(["recall_drug"]), bind: rt.bind },
-    { t: `공급중단 (${fmt(s.suspends.length)})`, html: st.html + srcline(["supply_suspend"], META.hidden_suspend ? `공개 비동의 ${META.hidden_suspend}건은 싣지 않음` : ""), bind: st.bind },
-    { t: `공급부족 (${fmt(s.shortages.length)})`, html: sh.html + srcline(["supply_shortage"]), bind: sh.bind },
-    { t: `안전성서한 (${fmt(s.letters.length)})`, html: lt.html + srcline(["safety_letter"]), bind: lt.bind },
-  ]);
+  // 필터 후보: 회수·공급중단·부족에 나온 업체 (사업자번호 기준) — 고르면 사업자번호로 정확히 묶는다
+  const cos = new Map();
+  [s.recalls, s.suspends, s.shortages].forEach(rows => rows.forEach(r => { if (r[3] && !cos.has(r[3])) cos.set(r[3], r[2]); }));
+  const coOpts = [...cos.entries()].sort((a, b) => a[1].localeCompare(b[1], "ko")).map(([b, n]) => `<option value="${esc(n)} (${esc(fmtBiz(b))})"></option>`).join("");
   const xf = x => x.slice(2).replace("-", ".");
+  const months = t.recalls.x;
+  const monthly = (rows, idx) => { const c = {}; rows.forEach(r => { const k = (r[idx] || "").slice(0, 7); c[k] = (c[k] || 0) + 1; }); return months.map(m => c[m] || 0); };
+
+  function body(q) {
+    const raw = (q || "").trim();
+    const bm = raw.match(/\((\d{3}-\d{2}-\d{5})\)\s*$/);
+    const biz = bm ? bm[1].replace(/-/g, "") : "";
+    const name = (biz ? raw.replace(/\s*\(\d{3}-\d{2}-\d{5}\)\s*$/, "") : raw).toLowerCase();
+    const hit = r => !raw ? true : biz ? r[3] === biz : (r[1] + " " + r[2]).toLowerCase().includes(name);
+    const R = s.recalls.filter(hit), S = s.suspends.filter(hit), H = s.shortages.filter(hit);
+    // 안전성서한에는 업체·품목 식별자가 없다 → 제목·내용에 이름이 들어간 것만
+    const L = !raw ? s.letters : s.letters.filter(r => (r[1] + " " + r[4]).toLowerCase().includes(name));
+    const rt = table({ rows: R, sort: "date", csv: "회수판매중지", ph: "제품명, 업체명, 사유", text: r => [r[1], r[2], r[5]].join(" "),
+      filters: [{ label: "강제 여부", get: r => r[6] === "Y" ? "강제" : "강제 아님", opts: ["강제", "강제 아님"] }],
+      cols: [{ k: "date", t: "회수명령일", v: r => r[0] }, { k: "p", t: "제품", v: r => r[1], h: r => linkDrug(r[4], r[1]) },
+        { k: "e", t: "업체", v: r => r[2], h: r => linkCo(r[3], r[2]) }, { k: "why", t: "사유", v: r => r[5], wrap: 1 }, { k: "f", t: "강제 여부", v: r => r[6] === "Y" ? "강제" : "강제 아님" }] });
+    const st = table({ rows: S, sort: "date", csv: "공급중단", ph: "제품명, 업체명, 사유", text: r => [r[1], r[2], r[7]].join(" "),
+      filters: [{ label: "구분", get: r => r[5], opts: [...new Set(s.suspends.map(r => r[5]))] }, { label: "처리상태", get: r => r[8], opts: s.suspend_status.map(x => x[0]) }],
+      cols: [{ k: "date", t: "신고일", v: r => r[0] }, { k: "p", t: "제품", v: r => r[1], h: r => linkDrug(r[4], r[1]) },
+        { k: "e", t: "업체", v: r => r[2], h: r => linkCo(r[3], r[2]) }, { k: "f", t: "구분", v: r => r[5] }, { k: "sd", t: "중단(예정)일", v: r => r[6] },
+        { k: "why", t: "사유", v: r => r[7], wrap: 1 }, { k: "s", t: "처리상태", v: r => r[8] }] });
+    const sh = table({ rows: H, sort: "date", csv: "공급부족", ph: "제품명, 업체명, 사유", text: r => [r[1], r[2], r[5]].join(" "),
+      filters: [{ label: "처리상태", get: r => r[7], opts: s.shortage_status.map(x => x[0]) }],
+      cols: [{ k: "date", t: "신고일", v: r => r[0] }, { k: "p", t: "제품", v: r => r[1], h: r => linkDrug(r[4], r[1]) },
+        { k: "e", t: "업체", v: r => r[2], h: r => linkCo(r[3], r[2]) }, { k: "why", t: "부족 사유", v: r => r[5], wrap: 1 },
+        { k: "plan", t: "공급 예정일", v: r => r[6] }, { k: "s", t: "처리상태", v: r => r[7] }, { k: "alt", t: "대체 가능 여부·조치", v: r => r[8], wrap: 1 }] });
+    const lt = table({ rows: L, sort: "date", csv: "안전성서한", ph: "제목, 내용", text: r => [r[1], r[4], r[2]].join(" "),
+      cols: [{ k: "date", t: "공고일", v: r => r[0] }, { k: "t", t: "제목", v: r => r[1], h: r => r[3] ? `<a class="link" href="${esc(r[3])}" target="_blank" rel="noopener">${esc(r[1])}</a>` : esc(r[1]), wrap: 1 },
+        { k: "c", t: "내용", v: r => r[4], wrap: 1 }, { k: "d", t: "담당 부서", v: r => r[2] }] });
+    const tb = tabs([
+      { t: `회수·판매중지 (${fmt(R.length)})`, html: rt.html + srcline(["recall_drug"]), bind: rt.bind },
+      { t: `공급중단 (${fmt(S.length)})`, html: st.html + srcline(["supply_suspend"], META.hidden_suspend ? `공개 비동의 ${META.hidden_suspend}건은 싣지 않음` : ""), bind: st.bind },
+      { t: `공급부족 (${fmt(H.length)})`, html: sh.html + srcline(["supply_shortage"]), bind: sh.bind },
+      { t: `안전성서한 (${fmt(L.length)})`, html: lt.html + srcline(["safety_letter"], raw ? "업체 식별자가 없어 제목·내용에 이름이 들어간 서한만 표시" : ""), bind: lt.bind },
+    ]);
+    const label = raw ? `'${esc(biz ? raw.replace(/\s*\(.*\)$/, "") : raw)}' ` : "";
+    const html = `
+    <div class="kpis">
+      ${kpi("회수·판매중지", fmt(R.length), raw ? "필터 결과" : "전체")}
+      ${kpi("공급중단 신고", fmt(S.length), raw ? "필터 결과" : "전체")}
+      ${kpi("공급부족 신고", fmt(H.length), raw ? "필터 결과" : "전체")}
+      ${kpi("안전성서한", fmt(L.length), raw ? "제목·내용에 이름 포함" : "전체")}
+    </div>
+    <div class="grid2">
+      ${panel(`${label}월별 회수·판매중지 (최근 36개월)`, lineChart(months, [{ n: "회수·판매중지", v: raw ? monthly(R, 0) : t.recalls.y, c: "var(--bad)", area: true }], { xf }) + srcline(["recall_drug"], "회수명령일 기준"))}
+      ${panel(`${label}월별 공급중단·부족 신고 (최근 36개월)`, lineChart(months, [{ n: "공급중단", v: raw ? monthly(S, 0) : t.suspends.y, c: "var(--warn)" }, { n: "공급부족", v: raw ? monthly(H, 0) : t.shortages.y, c: "var(--accent)" }], { xf }) + srcline(["supply_suspend", "supply_shortage"], "신고일 기준"))}
+    </div>
+    ${panel("목록", tb.html)}`;
+    return { html, bind: tb.bind, n: R.length + S.length + H.length };
+  }
+
   const html = head("공급·안전", "분석", ["recall_drug", "supply_suspend", "supply_shortage", "safety_letter"]) + `
-  <div class="grid2">
-    ${panel("월별 회수·판매중지 (최근 36개월)", lineChart(t.recalls.x, [{ n: "회수·판매중지", v: t.recalls.y, c: "var(--bad)", area: true }], { xf }) + srcline(["recall_drug"], "회수명령일 기준"))}
-    ${panel("월별 공급중단·부족 신고 (최근 36개월)", lineChart(t.suspends.x, [{ n: "공급중단", v: t.suspends.y, c: "var(--warn)" }, { n: "공급부족", v: t.shortages.y, c: "var(--accent)" }], { xf }) + srcline(["supply_suspend", "supply_shortage"], "신고일 기준"))}
-  </div>
-  ${panel("목록", tb.html)}`;
-  return { html, bind: tb.bind };
+  <section class="panel filterbar">
+    <label for="sf-q">업체·제품으로 좁히기</label>
+    <input id="sf-q" type="search" list="sf-list" placeholder="업체명 또는 제품명 입력 (목록에서 업체를 고르면 사업자번호로 정확히 묶음)" autocomplete="off">
+    <datalist id="sf-list">${coOpts}</datalist>
+    <button class="btn" id="sf-clear" type="button">전체 보기</button>
+    <span class="muted small" id="sf-info"></span>
+  </section>
+  <div id="sf-body"></div>`;
+  return {
+    html, bind() {
+      const box = $("#sf-body"), q = $("#sf-q"), info = $("#sf-info");
+      const run = () => {
+        const r = body(q.value); box.innerHTML = r.html; r.bind(); drawCharts(box);
+        info.textContent = q.value.trim() ? `회수·공급중단·부족 ${fmt(r.n)}건` : "";
+      };
+      let tm; q.addEventListener("input", () => { clearTimeout(tm); tm = setTimeout(run, 300); });
+      $("#sf-clear").addEventListener("click", () => { q.value = ""; run(); });
+      run();
+    },
+  };
 };
+
 
 V.changes = async () => {
   const c = await load("changes.json");
