@@ -61,9 +61,12 @@ jobs:
       - name: 이전 DB 내려받기
         run: |
           mkdir -p data
-          if gh release download data-latest -p mfds.sqlite.gz -D data --repo "$GITHUB_REPOSITORY"; then
+          # 보관 원칙: 이전 DB가 Release에 있는데 못 받으면 새로 시작하지 않고 멈춘다 (빈 DB로 덮어쓰면 이력이 사라짐)
+          if gh release view data-latest --repo "$GITHUB_REPOSITORY" --json assets -q ".assets[].name" 2>/dev/null | grep -qx "mfds.sqlite.gz"; then
+            gh release download data-latest -p mfds.sqlite.gz -D data --repo "$GITHUB_REPOSITORY" || { echo "오류: 이전 DB 내려받기 실패. 이력 보호를 위해 수집을 중단합니다."; exit 1; }
             gunzip -kf data/mfds.sqlite.gz
-            mv data/mfds.sqlite.gz data/prev.sqlite.gz   # 첫 필드 삭제 전 백업용 (게시 단계)
+            mv data/mfds.sqlite.gz data/prev.sqlite.gz
+            cp data/mfds.sqlite data/prev.sqlite      # 게시 전 보관 점검용
             echo "이전 DB를 이어서 사용합니다."
           else
             echo "이전 DB가 없습니다 (최초 실행)."
@@ -79,6 +82,15 @@ jobs:
           python -m collector.run --db data/mfds.sqlite --apis "$APIS" --rows "$ROWS" \
             --max-pages "$MAX_PAGES" --trigger "$TRIGGER" --summary data/last_run.json $FULL_FLAG
 
+      - name: 보관 점검 (기록이 줄었으면 게시 중단)
+        if: env.MAX_PAGES == '0'
+        run: |
+          if [ -f data/prev.sqlite ]; then
+            python -m collector.guard --prev data/prev.sqlite --new data/mfds.sqlite --summary "$GITHUB_STEP_SUMMARY"
+          else
+            echo "이전 DB 없음 (최초 실행) → 점검 생략"
+          fi
+
       - name: DB 게시 (Release data-latest)
         if: env.MAX_PAGES == '0'
         run: |
@@ -88,9 +100,19 @@ jobs:
               --title "수집 데이터 (최신)" \
               --notes "GitHub Actions가 갱신하는 SQLite DB(mfds.sqlite.gz)와 최근 실행 요약(last_run.json)입니다."
           fi
-          # 문서 본문 필드를 지우기 전 DB를 한 번만 보관 (2026-11-18 결정, 필요 시 복원용)
-          if [ -f data/prev.sqlite.gz ] && ! gh release view data-latest --repo "$GITHUB_REPOSITORY" --json assets -q ".assets[].name" | grep -qx "mfds-before-drop-docs.sqlite.gz"; then
-            mv data/prev.sqlite.gz data/mfds-before-drop-docs.sqlite.gz
-            gh release upload data-latest data/mfds-before-drop-docs.sqlite.gz --repo "$GITHUB_REPOSITORY"
-          fi
           gh release upload data-latest data/mfds.sqlite.gz data/last_run.json --clobber --repo "$GITHUB_REPOSITORY"
+
+      - name: 주간 백업 (일요일, 최근 8주 보관)
+        if: env.MAX_PAGES == '0'
+        run: |
+          # KST 기준 일요일이거나 아직 백업이 하나도 없으면 날짜를 붙인 사본을 남긴다
+          DOW=$(TZ=Asia/Seoul date +%u); TAG=$(TZ=Asia/Seoul date +%Y%m%d)
+          NAMES=$(gh release view data-latest --repo "$GITHUB_REPOSITORY" --json assets -q ".assets[].name")
+          if [ "$DOW" = "7" ] || ! echo "$NAMES" | grep -q "^mfds-backup-"; then
+            cp data/mfds.sqlite.gz "data/mfds-backup-$TAG.sqlite.gz"
+            gh release upload data-latest "data/mfds-backup-$TAG.sqlite.gz" --clobber --repo "$GITHUB_REPOSITORY"
+            NAMES=$(gh release view data-latest --repo "$GITHUB_REPOSITORY" --json assets -q ".assets[].name")
+            echo "$NAMES" | grep "^mfds-backup-" | sort | head -n -8 | while read -r OLD; do
+              gh release delete-asset data-latest "$OLD" --yes --repo "$GITHUB_REPOSITORY"
+            done
+          fi

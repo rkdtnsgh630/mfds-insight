@@ -301,3 +301,24 @@ class RegistryTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class GuardTests(unittest.TestCase):
+    def make(self, path, n):
+        con = S.connect(path)
+        run_id = S.start_run(con, "test", "t")
+        collect_api(con, FakeClient([[{"ID": i} for i in range(n)]]), run_id, dict(API, id="g"), 100)
+        con.close()
+
+    def test_guard_blocks_when_rows_shrink(self):
+        import os
+        import tempfile
+        from collector import guard
+        d = tempfile.mkdtemp()
+        prev, same, fewer = (os.path.join(d, x) for x in ("p.sqlite", "s.sqlite", "f.sqlite"))
+        self.make(prev, 3)
+        self.make(same, 3)
+        self.make(fewer, 2)
+        self.assertTrue(guard.check(prev, same)[0])
+        self.assertFalse(guard.check(prev, fewer)[0])
+        self.assertEqual(guard.main(["--prev", prev, "--new", fewer]), 3)

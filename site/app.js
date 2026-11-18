@@ -246,10 +246,10 @@ V.dashboard = async () => {
   </div>
   <div class="grid2">
     ${panel("최근 신규 허가", feed(d.new_permits.slice(0, 8), x => r(x[4], `${linkDrug(x[0], x[1])} <span class="muted">· ${linkCo(x[3], x[2])}</span>`, `<span class="pill p-new">${esc(x[5] || x[6])}</span>`)) + srcline(["drug_permit"]))}
-    ${panel("최근 회수·판매중지", feed(d.recalls, x => r(x[0], `${linkDrug(x[4], x[1])} <span class="muted">· ${linkCo(x[3], x[2])} — ${esc(x[5])}</span>`, x[6] === "Y" ? `<span class="pill p-bad">강제</span>` : `<span class="pill p-mute">강제 아님</span>`)) + srcline(["recall_drug"]))}
-    ${panel("최근 행정처분", feed(d.admins, x => r(x[0], `${linkCo(x[2], x[1])} <span class="muted">${x[3] ? "· " + esc(x[3]) : ""}</span>`, `<span class="pill p-mute">${esc(x[4])}</span>`)) + srcline(["admin_action"], "유형은 처분명 문구로 분류"))}
+    ${panel("최근 회수·판매중지", feed(d.recalls, x => r(x[0], `${goneTag(x[7])}${linkDrug(x[4], x[1])} <span class="muted">· ${linkCo(x[3], x[2])} — ${esc(x[5])}</span>`, x[6] === "Y" ? `<span class="pill p-bad">강제</span>` : `<span class="pill p-mute">강제 아님</span>`)) + srcline(["recall_drug"]))}
+    ${panel("최근 행정처분", feed(d.admins, x => r(x[0], `${goneTag(x[5])}${linkCo(x[2], x[1])} <span class="muted">${x[3] ? "· " + esc(x[3]) : ""}</span>`, `<span class="pill p-mute">${esc(x[4])}</span>`)) + srcline(["admin_action"], "유형은 처분명 문구로 분류"))}
     ${panel("최근 공급중단·공급부족 신고", feed(d.suspends.map(x => ({ x, k: "중단" })).concat(d.shortages.map(x => ({ x, k: "부족" }))).sort((a, b) => b.x[0] < a.x[0] ? -1 : 1).slice(0, 8),
-      o => r(o.x[0], `${linkDrug(o.x[4], o.x[1])} <span class="muted">· ${linkCo(o.x[3], o.x[2])}</span>`, `<span class="pill p-warn">${o.k}</span>`)) + srcline(["supply_suspend", "supply_shortage"]))}
+      o => r(o.x[0], `${goneTag(o.x[6])}${linkDrug(o.x[4], o.x[1])} <span class="muted">· ${linkCo(o.x[3], o.x[2])}</span>`, `<span class="pill p-warn">${o.k}</span>`)) + srcline(["supply_suspend", "supply_shortage"]))}
     ${panel("최근 허가 취하·만료", feed(d.new_cancels.slice(0, 8), x => r(x[4], `${linkDrug(x[0], x[1])} <span class="muted">· ${linkCo(x[3], x[2])}</span>`, `<span class="pill p-mute">${esc(x[5])}</span>`)) + srcline(["drug_permit"], "취하일자 기준"))}
     ${panel("최근 안전성서한", feed(d.letters, x => r(x[0], x[2] ? `<a class="link" href="${esc(x[2])}" target="_blank" rel="noopener">${esc(x[1])}</a>` : esc(x[1]))) + srcline(["safety_letter"]))}
   </div>
