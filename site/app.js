@@ -856,9 +856,8 @@ V.regulation = async () => {
     ${kpi("해외 제조소", fmt(g.overseas_total), `${g.overseas_country.length}개국 · 수입업체 ${fmt(g.overseas_companies)}곳`)}
     ${kpi("행정처분 (누적)", fmt(g.admins.length), `공개 중 ${fmt(g.admins.length - (g.admin_gone || 0))} · 공개 종료 ${fmt(g.admin_gone || 0)}`)}
   </div>
-  ${panel("해외 제조소 세계 지도", `<div class="docs"><button class="btn" id="wm-open" type="button">세계 지도 열기 (새 창)</button></div><div class="srcline">국가별 제조소 수를 색의 진하기로 표시합니다. 상위 국가: ${g.overseas_country.slice(0, 5).map(x => `${esc(x[0])} ${fmt(x[1])}`).join(" · ")}</div>`)}
   <div class="grid2">
-    ${panel("해외 제조소 국가별 (상위 15)", barChart(g.overseas_country.slice(0, 15).map(x => ({ k: x[0], v: x[1] }))) + srcline(["overseas_mfr"]))}
+    ${panel("해외 제조소 국가별 (상위 15)", barChart(g.overseas_country.slice(0, 15).map(x => ({ k: x[0], v: x[1] }))) + srcline(["overseas_mfr"])).replace('<div class="ph">', '<div class="ph"><button class="icon-btn" id="wm-open" type="button" style="order:2" title="세계 지도로 보기" aria-label="세계 지도로 보기"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.7 3.8 5.7 3.8 9s-1.3 6.3-3.8 9c-2.5-2.7-3.8-5.7-3.8-9S9.5 5.7 12 3z"/></svg></button>')}
     ${panel("연도별 행정처분 (처분확정일 기준)", colChart(g.admin_year.map(x => x[0]), g.admin_year.map(x => x[1]), { c: "var(--fg3)", label: "연도별 행정처분" }) + srcline(["admin_action"], "API는 공개 기간이 남은 처분만 주지만, 이 사이트는 공개 종료분도 계속 보관"))}
     ${panel("GMP 유효기간 만료 연도", colChart(g.gmp_valid_year.map(x => x[0]), g.gmp_valid_year.map(x => x[1]), { c: "var(--ok)", label: "GMP 유효기간 만료 연도" }) + srcline(["gmp"]))}
     ${panel("행정처분 유형", barChart(g.admin_type.map(x => ({ k: x[0], v: x[1] })), { c: "var(--fg3)" }) + srcline(["admin_action"], "처분명 문구에 '허가취소·업무정지·과징금·경고'가 들어가는지로 분류"))}
