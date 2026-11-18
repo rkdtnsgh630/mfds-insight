@@ -1,0 +1,44 @@
+name: site
+
+# 수집 DB로 화면용 JSON을 만들어 Release(data-latest)에 site-data.tar.gz로 올린다.
+# 수집(collect)이 성공하면 자동으로 이어서 실행된다. API는 호출하지 않는다.
+# (GitHub Pages 공개 배포 단계는 사용자 승인 후 추가)
+on:
+  workflow_dispatch:
+  workflow_run:
+    workflows: ["collect"]
+    types: [completed]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: site
+  cancel-in-progress: true
+
+jobs:
+  build:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: 단위 시험
+        run: python -m unittest discover -s tests -v
+      - name: DB 내려받기
+        run: |
+          mkdir -p data
+          gh release download data-latest -p mfds.sqlite.gz -D data --repo "$GITHUB_REPOSITORY"
+          gunzip -f data/mfds.sqlite.gz
+      - name: 화면용 데이터 생성
+        run: python -m sitebuild.export --db data/mfds.sqlite --out site/data --summary "$GITHUB_STEP_SUMMARY"
+      - name: Release에 올리기
+        run: |
+          tar -czf site-data.tar.gz -C site data
+          ls -la site-data.tar.gz
+          gh release upload data-latest site-data.tar.gz --clobber --repo "$GITHUB_REPOSITORY"
