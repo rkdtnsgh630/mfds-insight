@@ -177,6 +177,8 @@ class RegistryTests(unittest.TestCase):
         ids = [a["id"] for a in APIS]
         self.assertEqual(len(ids), len(set(ids)))
         self.assertTrue(all(a["tier"] == "core" for a in select_apis("tier:core")))
+        self.assertEqual([a["id"] for a in select_apis("tier:slow")], ["drug_permit_detail"])
+        self.assertEqual(len(select_apis("tier:core+slow")), 11)
         self.assertEqual([a["id"] for a in select_apis("gmp,dmf")], ["gmp", "dmf"])
         with self.assertRaises(ValueError):
             select_apis("nope")

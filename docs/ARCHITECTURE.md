@@ -37,7 +37,7 @@ GitHub Actions (cron / 수동)
 | 제약 | 대응 |
 |---|---|
 | 오퍼레이션당 일일 10,000회 호출 | 페이지당 500건 기준, 가장 큰 DUR 병용금기도 약 1,600회 |
-| Actions 작업 최대 6시간 | `timeout-minutes: 340`, 정기 수집은 core 11개만. 보류(hold)는 수동 실행 |
+| Actions 작업 최대 6시간 | `timeout-minutes: 340`, 매일 core 10개(약 12분), 매월 1일 slow 1개(약 80분). 보류(hold)는 수동 실행 |
 | 공개 저장소 60일 무활동 시 예약 실행 중지 | 커밋이 없으면 수동으로 재활성화 필요 |
 | Release 파일 2GB | gzip 압축. 크기 증가 추이를 last_run.json·Release에서 확인 |
 

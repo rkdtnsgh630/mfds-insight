@@ -10,7 +10,9 @@
   key      레코드 식별 필드 목록. None이면 레코드 전체 해시를 식별자로 쓴다
            (이 경우 값이 바뀌면 '수정'이 아니라 '삭제+추가'로 기록된다).
            같은 실행 안에서 키가 겹치면 해시를 덧붙여 구분한다 (store.py).
-  tier     core     : 정기 수집 대상. 확정된 사이트 화면 7개가 쓰는 11개 (2026-11-18 사용자 확정)
+  tier     core     : 매일 수집. 확정된 사이트 화면 7개가 쓰는 API 중 빠른 10개 (2026-11-18 사용자 확정)
+           slow     : 화면에 쓰지만 수집이 오래 걸려 매일 수집에서 뺀 것 (제품허가 상세, 첫 수집 79분).
+                      임시로 매월 1일 수집. 줄이는 방법 조사 후 다시 정함 (docs/NEXT_STEPS.md)
            hold     : 보류. 특허·임상·제네릭 메뉴 등 채택 시 수집 (수동 실행 가능)
            excluded : 1차 사이트에 쓰지 않음 (DUR·의약외품·화장품·주성분 상세 등). 등록만 유지
 """
@@ -20,7 +22,7 @@ APIS = [
     {"id": "drug_permit", "name": "의약품 제품 허가 목록", "data_id": "15095677",
      "path": "DrugPrdtPrmsnInfoService08/getDrugPrdtPrmsnInq08", "key": ["ITEM_SEQ"], "tier": "core"},
     {"id": "drug_permit_detail", "name": "의약품 제품 허가 상세", "data_id": "15095677",
-     "path": "DrugPrdtPrmsnInfoService08/getDrugPrdtPrmsnDtlInq08", "key": ["ITEM_SEQ"], "tier": "core"},
+     "path": "DrugPrdtPrmsnInfoService08/getDrugPrdtPrmsnDtlInq08", "key": ["ITEM_SEQ"], "tier": "slow"},
     {"id": "drug_ingredient", "name": "의약품 제품 주성분 상세", "data_id": "15095677",
      "path": "DrugPrdtPrmsnInfoService08/getDrugPrdtMcpnDtlInq08", "key": None, "tier": "excluded"},
     {"id": "company_list", "name": "의약품 등 업체허가 목록", "data_id": "15095682",
@@ -99,11 +101,11 @@ APIS = [
      "path": "DURPrdlstInfoService03/getPwnmTabooInfoList03", "key": None, "tier": "excluded"},
 ]
 
-TIERS = ("core", "hold", "excluded")
+TIERS = ("core", "slow", "hold", "excluded")
 
 
 def select_apis(spec):
-    """'all', 'tier:core', 'tier:core+hold', 또는 'id1,id2' 형식으로 대상 API를 고른다."""
+    """'all', 'tier:core', 'tier:core+slow', 또는 'id1,id2' 형식으로 대상 API를 고른다."""
     spec = (spec or "").strip()
     if spec in ("", "all"):
         return list(APIS)

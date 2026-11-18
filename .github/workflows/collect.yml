@@ -2,11 +2,12 @@ name: collect
 
 on:
   schedule:
-    - cron: "0 18 * * *"   # 매일 03:00 KST
+    - cron: "0 18 * * *"   # 매일 03:00 KST: tier:core (빠른 10개)
+    - cron: "0 19 1 * *"   # 매월 1일 04:00 KST: tier:slow (제품허가 상세, 임시)
   workflow_dispatch:
     inputs:
       apis:
-        description: "수집 대상 (tier:core | tier:hold | tier:core+hold | all | id1,id2)"
+        description: "수집 대상 (tier:core | tier:slow | tier:hold | tier:core+slow | all | id1,id2)"
         required: false
         default: "tier:core"
       max_pages:
@@ -42,7 +43,7 @@ jobs:
     timeout-minutes: 340
     env:
       GH_TOKEN: ${{ github.token }}
-      APIS: ${{ github.event.inputs.apis || 'tier:core' }}
+      APIS: ${{ github.event.inputs.apis || (github.event.schedule == '0 19 1 * *' && 'tier:slow') || 'tier:core' }}
       MAX_PAGES: ${{ github.event.inputs.max_pages || '0' }}
       ROWS: ${{ github.event.inputs.rows || '500' }}
     steps:
