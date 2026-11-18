@@ -54,7 +54,7 @@ function periodRow(ids) {
     const sub = p.now ? "기간 구분 없음" : [p.basis && p.basis + " 기준", p.note].filter(Boolean).join(", ");
     return `<span class="per"><span class="pn">${esc(p.n)}</span> ${range}${sub ? ` <span class="ps">${esc(sub)}</span>` : ""}</span>`;
   }).filter(Boolean);
-  return items.length ? `<div class="periods" aria-label="자료 기간"><span class="pl">자료 기간</span>${items.join("")}</div>` : "";
+  return items.length ? `<div class="periods" aria-label="자료 기간"><span class="pl">자료 기간</span>${items.join("")}<span class="ps">API에서 빠진 기록도 지우지 않고 '공개 종료'로 표시</span></div>` : "";
 }
 function head(title, crumb, srcIds, periodIds) {
   const src = (srcIds || []).map(id => `<a href="${esc(API(id).url)}" target="_blank" rel="noopener">${esc(API(id).name)}</a>`).join(" · ");
@@ -69,6 +69,9 @@ const panel = (title, body, sub) => `<section class="panel"><div class="ph"><div
 const kpi = (label, value, sub, href) => `<div class="kpi"><div class="l">${label}</div>${href ? `<a class="v" href="${href}">${value}</a>` : `<div class="v">${value}</div>`}<div class="s">${sub || ""}</div></div>`;
 const linkDrug = (seq, name) => seq ? `<a class="link" href="#drug/${esc(seq)}">${esc(name || seq)}</a>` : esc(name);
 const linkCo = (biz, name) => biz ? `<a class="link" href="#company/${esc(biz)}">${esc(name || fmtBiz(biz))}</a>` : esc(name);
+const goneTag = s => s === "공개 종료" ? `<span class="pill p-bad">공개 종료</span> ` : "";
+const stCol = (i, j) => ({ k: "pub" + i, t: "공개 상태", v: r => r[i] || "공개 중", h: r => (r[i] === "공개 종료" ? `<span class="pill p-bad">공개 종료</span>` : `<span class="pill p-ok">공개 중</span>`) + (j != null && r[j] ? `<div class="muted small">마지막 확인 ${esc(r[j])}</div>` : "") });
+const stFilter = i => ({ label: "공개 상태", get: r => r[i] || "공개 중", opts: ["공개 중", "공개 종료"] });
 const statusTag = s => `<span class="st ${s === "정상" ? "ok" : (/취소|취하/.test(s) ? "bad" : "")}">${esc(s || "–")}</span>`;
 const empty = t => `<div class="empty">${t || "해당 기록이 없습니다."}</div>`;
 
@@ -229,7 +232,7 @@ V.dashboard = async () => {
     ${kpi("최근 30일 신규 허가", fmt(k.new_permits_30), `같은 기간 취하·만료 등 ${fmt(k.new_cancels_30)}건`)}
     ${kpi("최근 30일 회수·판매중지", fmt(k.recalls_30), `누적 ${fmt(k.recalls_total)}건${k.recalls_gone ? ` (공개 종료 ${fmt(k.recalls_gone)}건 포함)` : ""}`, "#supply")}
     ${kpi("최근 30일 행정처분", fmt(k.admins_30), `누적 ${fmt(k.admins_total)}건${k.admins_gone ? ` (공개 종료 ${fmt(k.admins_gone)}건 포함)` : ""}`, "#regulation")}
-    ${kpi("최근 30일 공급중단·부족", fmt(k.suspends_30 + k.shortages_30), `중단 ${fmt(k.suspends_30)} · 부족 ${fmt(k.shortages_30)}건`, "#supply")}
+    ${kpi("최근 30일 공급중단·부족", fmt(k.suspends_30 + k.shortages_30), `중단 ${fmt(k.suspends_30)} · 부족 ${fmt(k.shortages_30)}건${(k.suspends_gone || 0) + (k.shortages_gone || 0) ? ` · 공개 종료 ${fmt((k.suspends_gone || 0) + (k.shortages_gone || 0))}건 보관` : ""}`, "#supply")}
   </div>
   <div class="notice small">'최근 30일'은 ${esc(META.since30)} ~ ${esc(META.as_of)} 기간이며, 각 API의 날짜 필드(허가일자·회수명령일·처분확정일·신고일)를 기준으로 셉니다.</div>
   <div class="grid2">
@@ -318,7 +321,7 @@ V.company = async biz => {
   const ovs = table({
     rows: c.overseas, sort: "country", dir: 1, csv: `${c.name}_해외제조소`, ph: "제조소명, 국가", per: 8,
     text: r => r.join(" "),
-    cols: [{ k: "m", t: "해외 제조소", v: r => r[0] }, { k: "country", t: "국가", v: r => r[1] }, { k: "no", t: "제조소 번호", v: r => r[2] }],
+    cols: [{ k: "m", t: "해외 제조소", v: r => r[0] }, { k: "country", t: "국가", v: r => r[1] }, { k: "no", t: "제조소 번호", v: r => r[2] }, stCol(3)],
   });
   // 소재지 = 업체허가 목록 주소 + GMP 공장 주소 (시·도 + 시·군 단위로 합쳐 중복 제거, 출처 표시)
   const locs = [];
@@ -334,7 +337,7 @@ V.company = async biz => {
   <dl class="idgrid co">
     <div><dt>사업자등록번호</dt><dd>${esc(fmtBiz(biz))}</dd></div>
     <div><dt>소재지 (${locs.length}곳)</dt><dd>${locs.length ? locs.map(l => `${esc(l.k)} <span class="muted small">${esc(l.src.join("·"))}</span>`).join("<br>") : "–"}</dd></div>
-    <div><dt>업종·허가</dt><dd>${c.licenses.length ? c.licenses.map(l => `${esc(l[0])} <span class="muted small">${esc(l[1] || "")}</span>`).join("<br>") : '<span class="muted">업체허가 목록에 없음</span>'}</dd></div>
+    <div><dt>업종·허가</dt><dd>${c.licenses.length ? c.licenses.map(l => `${goneTag(l[4])}${esc(l[0])} <span class="muted small">${esc(l[1] || "")}</span>`).join("<br>") : '<span class="muted">업체허가 목록에 없음</span>'}</dd></div>
     <div><dt>수집 데이터에 쓰인 상호</dt><dd>${c.names.map(esc).join("<br>")}</dd></div>
     <div class="full"><dt>GMP 적합판정 공장 (${c.gmp.length}건)</dt><dd>${c.gmp.length ? c.gmp.map(g => `${esc(g[2] || "주소 없음")} <span class="muted small">· ${esc(g[0])}${g[1] ? " · " + esc(g[1]) : ""} · 유효 ~${esc(g[3] || "–")}</span>`).join("<br>")
       + (c.gmp.length < 2 ? "" : `<p class="muted small note">공장 ${c.gmp.length}곳 모두 사업자번호 ${esc(fmtBiz(biz))} 하나로 등록되어 있어, 공장별 회수·처분 기록도 이 업체에 함께 모입니다.</p>`) : '<span class="muted">GMP 발급 기록 없음</span>'}</dd></div>
@@ -358,9 +361,9 @@ V.company = async biz => {
   <div class="grid2">
     ${panel(`행정처분 (${c.admin.length})`, tl(c.admin, x => tr(x[0], `<span class="pill p-mute">${esc(x[2])}</span>`, `${x[5] === "공개 종료" ? `<span class="pill p-bad">공개 종료</span> ` : ""}${esc(x[3])}${x[1] ? `<div class="muted small">${esc(x[1])}</div>` : ""}`)) + srcline(["admin_action"]))}
     ${panel(`회수·판매중지 (${c.recall.length})`, tl(c.recall, x => tr(x[0], x[4] === "Y" ? `<span class="pill p-bad">강제</span>` : `<span class="pill p-mute">강제 아님</span>`, `${x[5] === "공개 종료" ? `<span class="pill p-bad">공개 종료</span> ` : ""}${linkDrug(x[2], x[1])}<div class="muted small">${esc(x[3])}</div>`)) + srcline(["recall_drug"]))}
-    ${panel(`공급중단 신고 (${c.suspend.length})`, tl(c.suspend, x => tr(x[0], `<span class="pill p-warn">${esc(x[3] || "중단")}</span>`, `${linkDrug(x[2], x[1])}<div class="muted small">중단일 ${esc(x[4] || "–")} · ${esc(x[5])}</div>`)) + srcline(["supply_suspend"]))}
-    ${panel(`공급부족 신고 (${c.shortage.length})`, tl(c.shortage, x => tr(x[0], `<span class="pill p-warn">부족</span>`, `${linkDrug(x[2], x[1])}<div class="muted small">${esc(x[3])} · ${esc(x[4])}</div>`)) + srcline(["supply_shortage"]))}
-    ${panel(`GMP 적합판정 (${c.gmp.length})`, tl(c.gmp, x => tr(x[3] ? "~" + x[3] : "–", `<span class="pill p-ok">${esc(x[0])}</span>`, `${esc(x[2])}${x[1] ? `<div class="muted small">${esc(x[1])}</div>` : ""}`)) + srcline(["gmp"], "날짜는 유효기간 만료일"))}
+    ${panel(`공급중단 신고 (${c.suspend.length})`, tl(c.suspend, x => tr(x[0], `<span class="pill p-warn">${esc(x[3] || "중단")}</span>`, `${goneTag(x[6])}${linkDrug(x[2], x[1])}<div class="muted small">중단일 ${esc(x[4] || "–")} · ${esc(x[5])}</div>`)) + srcline(["supply_suspend"]))}
+    ${panel(`공급부족 신고 (${c.shortage.length})`, tl(c.shortage, x => tr(x[0], `<span class="pill p-warn">부족</span>`, `${goneTag(x[5])}${linkDrug(x[2], x[1])}<div class="muted small">${esc(x[3])} · ${esc(x[4])}</div>`)) + srcline(["supply_shortage"]))}
+    ${panel(`GMP 적합판정 (${c.gmp.length})`, tl(c.gmp, x => tr(x[3] ? "~" + x[3] : "–", `<span class="pill p-ok">${esc(x[0])}</span>`, `${goneTag(x[4])}${esc(x[2])}${x[1] ? `<div class="muted small">${esc(x[1])}</div>` : ""}`)) + srcline(["gmp"], "날짜는 유효기간 만료일"))}
     ${panel(`해외 제조소 (${fmt(c.overseas_total)})`, c.overseas.length ? ovs.html + (c.overseas_total > c.overseas.length ? `<div class="srcline">상위 ${c.overseas.length}곳만 표시</div>` : "") : empty())}
   </div>`;
   return { html, bind() { items.bind(); if (c.overseas.length) ovs.bind(); } };
@@ -375,7 +378,7 @@ V.drugs = async q => {
       { label: "전문/일반", get: r => r[5], opts: ["전문", "일반"] },
       { label: "구분", get: r => r[10].includes("N") ? "신약" : (r[10].includes("R") ? "희귀의약품" : "기타"), opts: ["신약", "희귀의약품"] }],
     cols: [
-      { k: "name", t: "품목명", v: r => r[1], h: r => linkDrug(r[0], r[1]) + (r[10].includes("N") ? '<span class="flag">신약</span>' : "") + (r[10].includes("R") ? '<span class="flag r">희귀</span>' : "") },
+      { k: "name", t: "품목명", v: r => r[1], h: r => linkDrug(r[0], r[1]) + (r[10].includes("N") ? '<span class="flag">신약</span>' : "") + (r[10].includes("R") ? '<span class="flag r">희귀</span>' : "") + (r[10].includes("G") ? '<span class="flag r">공개 종료</span>' : "") },
       { k: "entp", t: "업체", v: r => r[2], h: r => linkCo(r[3], r[2]) },
       { k: "ingr", t: "주성분", v: r => r[7] || r[8], clip: 1 },
       { k: "spc", t: "구분", v: r => r[5] },
@@ -434,7 +437,7 @@ V.drug = async seq => {
   <dl class="idgrid">
     ${field("업체", linkCo(r[3], r[2]))}
     ${field("품목기준코드", esc(r[0]))}
-    ${field("상태", statusTag(r[6]) + (r[12] ? ` <span class="muted small">${esc(r[12])}</span>` : ""))}
+    ${field("상태", (r[10].includes("G") ? `<span class="pill p-bad">공개 종료</span> ` : "") + statusTag(r[6]) + (r[12] ? ` <span class="muted small">${esc(r[12])}</span>` : ""))}
     ${field("허가일 · 구분", `${esc(r[4])} · ${esc(r[11])}`)}
     ${field("전문/일반", esc(r[5]))}
     ${field("ATC 코드", esc(r[9]))}
@@ -459,8 +462,8 @@ V.drug = async seq => {
   ${panel("허가 문서 (식약처 원문)", `<div class="docs">${doc(d.doc_ee, "효능·효과 (PDF)")}${doc(d.doc_ud, "용법·용량 (PDF)")}${doc(d.doc_nb, "사용상 주의사항 (PDF)")}<a class="btn" href="https://nedrug.mfds.go.kr/pbp/CCBBB01/getItemDetail?itemSeq=${esc(r[0])}" target="_blank" rel="noopener">의약품안전나라에서 보기</a></div><div class="srcline">문서 본문은 저장하지 않고 식약처 의약품안전나라 원문으로 연결합니다.</div>`)}
   <div class="grid2">
     ${panel(`회수·판매중지 (${(rel.recall || []).length})`, tl(rel.recall, x => tr(x[0], x[2] === "Y" ? `<span class="pill p-bad">강제</span>` : `<span class="pill p-mute">강제 아님</span>`, `${x[3] === "공개 종료" ? `<span class="pill p-bad">공개 종료</span> ` : ""}${esc(x[1])}`)) + srcline(["recall_drug"]))}
-    ${panel(`공급중단 신고 (${(rel.suspend || []).length})`, tl(rel.suspend, x => tr(x[0], `<span class="pill p-warn">${esc(x[1] || "중단")}</span>`, `중단일 ${esc(x[2] || "–")} · ${esc(x[4])}<div class="muted small">${esc(x[3])}</div>`)) + srcline(["supply_suspend"]))}
-    ${panel(`공급부족 신고 (${(rel.shortage || []).length})`, tl(rel.shortage, x => tr(x[0], `<span class="pill p-warn">부족</span>`, `${esc(x[3])}<div class="muted small">${esc(x[1])}</div>`)) + srcline(["supply_shortage"]))}
+    ${panel(`공급중단 신고 (${(rel.suspend || []).length})`, tl(rel.suspend, x => tr(x[0], `<span class="pill p-warn">${esc(x[1] || "중단")}</span>`, `${goneTag(x[5])}중단일 ${esc(x[2] || "–")} · ${esc(x[4])}<div class="muted small">${esc(x[3])}</div>`)) + srcline(["supply_suspend"]))}
+    ${panel(`공급부족 신고 (${(rel.shortage || []).length})`, tl(rel.shortage, x => tr(x[0], `<span class="pill p-warn">부족</span>`, `${goneTag(x[4])}${esc(x[3])}<div class="muted small">${esc(x[1])}</div>`)) + srcline(["supply_shortage"]))}
     ${panel(`행정처분 (${(rel.admin || []).length})`, tl(rel.admin, x => tr(x[0], `<span class="pill p-mute">${esc(x[1])}</span>`, `${x[3] === "공개 종료" ? `<span class="pill p-bad">공개 종료</span> ` : ""}${esc(x[2])}`)) + srcline(["admin_action"]))}
   </div>
   ${prodRows.length ? `<div class="grid2">${pP.some(v => v) ? panel("연도별 생산실적", colChart(years, pP, { vf: wonM, label: "연도별 생산실적" }) + srcline(["production_import"], "금액 단위 백만원 · 업(허가)별 보고를 합친 값, 공장 주소와의 연결 정보는 없음")) : ""}${pI.some(v => v) ? panel("연도별 수입실적", colChart(years, pI, { c: "var(--accent2)", vf: usd, tf: v => v >= 1e8 ? (v / 1e8) + "억" : v >= 1e4 ? fmt(v / 1e4) + "만" : fmt(v), label: "연도별 수입실적" }) + srcline(["production_import"], "금액 단위 달러 · 업(허가)별 보고를 합친 값, 공장 주소와의 연결 정보는 없음")) : ""}</div>` : panel("연도별 생산·수입실적", empty("생산·수입실적 기록이 없습니다."))}
@@ -555,7 +558,7 @@ V.regulation = async () => {
     text: r => [r[0], r[3], r[4], r[1]].join(" "),
     filters: [{ label: "구분", get: r => r[2], opts: g.gmp_kind.map(x => x[0]) }],
     cols: [{ k: "n", t: "업체", v: r => r[0], h: r => linkCo(r[1], r[0]) }, { k: "kind", t: "구분", v: r => r[2] },
-      { k: "grp", t: "제형군", v: r => r[3], wrap: 1 }, { k: "addr", t: "공장 소재지", v: r => r[4] }, { k: "valid", t: "유효기간", v: r => r[5] }],
+      { k: "grp", t: "제형군", v: r => r[3], wrap: 1 }, { k: "addr", t: "공장 소재지", v: r => r[4] }, { k: "valid", t: "유효기간", v: r => r[5] }, stCol(6)],
   });
   const at = table({
     rows: g.admins, sort: "date", csv: "행정처분", ph: "업체명, 품목명, 처분 내용",
@@ -592,7 +595,7 @@ V.regulation = async () => {
         ot = table({ rows: o.rows, sort: "country", dir: 1, csv: "해외제조소", ph: "제조소명, 국가, 수입업체",
           text: r => r.join(" "), filters: [{ label: "국가", get: r => r[3], opts: g.overseas_country.map(x => x[0]) }],
           cols: [{ k: "m", t: "해외 제조소", v: r => r[2] }, { k: "country", t: "국가", v: r => r[3] }, { k: "addr", t: "주소", v: r => r[4], wrap: 1 },
-            { k: "c", t: "국내 업체", v: r => r[0], h: r => linkCo(r[1], r[0]) }, { k: "no", t: "제조소 번호", v: r => r[5] }] });
+            { k: "c", t: "국내 업체", v: r => r[0], h: r => linkCo(r[1], r[0]) }, { k: "no", t: "제조소 번호", v: r => r[5] }, stCol(6)] });
         $("#ovs-box").innerHTML = ot.html; ot.bind();
       });
     },
@@ -624,18 +627,18 @@ V.supply = async () => {
         { k: "e", t: "업체", v: r => r[2], h: r => linkCo(r[3], r[2]) }, { k: "why", t: "사유", v: r => r[5], wrap: 1 }, { k: "f", t: "강제 여부", v: r => r[6] === "Y" ? "강제" : "강제 아님" },
         { k: "st", t: "공개 상태", v: r => r[7] || "공개 중", h: r => (r[7] === "공개 종료" ? `<span class="pill p-bad">공개 종료</span>` : `<span class="pill p-ok">공개 중</span>`) + (r[8] ? `<div class="muted small">마지막 확인 ${esc(r[8])}</div>` : "") }] });
     const st = table({ rows: S, sort: "date", csv: "공급중단", ph: "제품명, 업체명, 사유", text: r => [r[1], r[2], r[7]].join(" "),
-      filters: [{ label: "구분", get: r => r[5], opts: [...new Set(s.suspends.map(r => r[5]))] }, { label: "처리상태", get: r => r[8], opts: s.suspend_status.map(x => x[0]) }],
+      filters: [{ label: "구분", get: r => r[5], opts: [...new Set(s.suspends.map(r => r[5]))] }, { label: "처리상태", get: r => r[8], opts: s.suspend_status.map(x => x[0]) }, stFilter(10)],
       cols: [{ k: "date", t: "신고일", v: r => r[0] }, { k: "p", t: "제품", v: r => r[1], h: r => linkDrug(r[4], r[1]) },
         { k: "e", t: "업체", v: r => r[2], h: r => linkCo(r[3], r[2]) }, { k: "f", t: "구분", v: r => r[5] }, { k: "sd", t: "중단(예정)일", v: r => r[6] },
-        { k: "why", t: "사유", v: r => r[7], wrap: 1 }, { k: "s", t: "처리상태", v: r => r[8] }] });
+        { k: "why", t: "사유", v: r => r[7], wrap: 1 }, { k: "s", t: "처리상태", v: r => r[8] }, stCol(10, 11)] });
     const sh = table({ rows: H, sort: "date", csv: "공급부족", ph: "제품명, 업체명, 사유", text: r => [r[1], r[2], r[5]].join(" "),
-      filters: [{ label: "처리상태", get: r => r[7], opts: s.shortage_status.map(x => x[0]) }],
+      filters: [{ label: "처리상태", get: r => r[7], opts: s.shortage_status.map(x => x[0]) }, stFilter(9)],
       cols: [{ k: "date", t: "신고일", v: r => r[0] }, { k: "p", t: "제품", v: r => r[1], h: r => linkDrug(r[4], r[1]) },
         { k: "e", t: "업체", v: r => r[2], h: r => linkCo(r[3], r[2]) }, { k: "why", t: "부족 사유", v: r => r[5], wrap: 1 },
-        { k: "plan", t: "공급 예정일", v: r => r[6] }, { k: "s", t: "처리상태", v: r => r[7] }, { k: "alt", t: "대체 가능 여부·조치", v: r => r[8], wrap: 1 }] });
+        { k: "plan", t: "공급 예정일", v: r => r[6] }, { k: "s", t: "처리상태", v: r => r[7] }, { k: "alt", t: "대체 가능 여부·조치", v: r => r[8], wrap: 1 }, stCol(9, 10)] });
     const lt = table({ rows: L, sort: "date", csv: "안전성서한", ph: "제목, 내용", text: r => [r[1], r[4], r[2]].join(" "),
       cols: [{ k: "date", t: "공고일", v: r => r[0] }, { k: "t", t: "제목", v: r => r[1], h: r => r[3] ? `<a class="link" href="${esc(r[3])}" target="_blank" rel="noopener">${esc(r[1])}</a>` : esc(r[1]), wrap: 1 },
-        { k: "c", t: "내용", v: r => r[4], wrap: 1 }, { k: "d", t: "담당 부서", v: r => r[2] }] });
+        { k: "c", t: "내용", v: r => r[4], wrap: 1 }, { k: "d", t: "담당 부서", v: r => r[2] }, stCol(6, 7)] });
     const tb = tabs([
       { t: `회수·판매중지 (${fmt(R.length)})`, html: rt.html + srcline(["recall_drug"]), bind: rt.bind },
       { t: `공급중단 (${fmt(S.length)})`, html: st.html + srcline(["supply_suspend"], META.hidden_suspend ? `공개 비동의 ${META.hidden_suspend}건은 싣지 않음` : ""), bind: st.bind },

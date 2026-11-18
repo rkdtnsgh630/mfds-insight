@@ -166,6 +166,34 @@ def migrate_dropped_fields(con, api):
     return len(rows)
 
 
+def migrate_keys(con, api):
+    """키 필드가 새로 지정된 API의 기존 원본(해시 키 'h:...')을 새 키로 옮긴다.
+
+    키 지정은 데이터 변경이 아니라 식별 방식 변경이므로 change_log를 새로 남기지 않는다
+    (기존 change_log의 키는 같이 바꾼다). 새 키가 겹치면 수집 때와 같이 '#해시12자리'를 붙인다.
+    바꾼 행 수를 돌려준다. 이미 옮긴 행은 건드리지 않는다.
+    """
+    fields = api.get("key")
+    if not fields:
+        return 0
+    rows = con.execute("SELECT record_key, record_hash, payload FROM raw_record WHERE api_id=? AND record_key LIKE 'h:%'",
+                       (api["id"],)).fetchall()
+    moved = 0
+    for old, h, payload in rows:
+        new = build_key(json.loads(payload), fields, h)
+        if new == old:
+            continue
+        if con.execute("SELECT 1 FROM raw_record WHERE api_id=? AND record_key=?", (api["id"], new)).fetchone():
+            new = f"{new}#{h[:12]}"
+            if con.execute("SELECT 1 FROM raw_record WHERE api_id=? AND record_key=?", (api["id"], new)).fetchone():
+                continue
+        con.execute("UPDATE raw_record SET record_key=? WHERE api_id=? AND record_key=?", (new, api["id"], old))
+        con.execute("UPDATE change_log SET record_key=? WHERE api_id=? AND record_key=?", (new, api["id"], old))
+        moved += 1
+    con.commit()
+    return moved
+
+
 def has_complete_run(con, api_id):
     return con.execute("SELECT 1 FROM collect_api_run WHERE api_id=? AND status='complete' LIMIT 1",
                        (api_id,)).fetchone() is not None

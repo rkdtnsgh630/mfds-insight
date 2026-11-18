@@ -176,6 +176,9 @@ def main(argv=None):
         if n:
             print(f"[migrate ] {api['id']:20} 저장 안 하는 필드 삭제 {n}건 (변경 이력 미기록)", flush=True)
         migrated += n
+        k = store.migrate_keys(con, api)
+        if k:
+            print(f"[migrate ] {api['id']:20} 식별 키 지정으로 {k}건 키 변경 (변경 이력 미기록)", flush=True)
     run_id = store.start_run(con, args.trigger, selection)
 
     results = []

@@ -123,7 +123,19 @@ class Exporter:
         self.as_of = as_of_dt.strftime("%Y-%m-%d")
         self.since30 = (as_of_dt - timedelta(days=30)).strftime("%Y-%m-%d")
 
-        P = {a: self.rows(a) for a in SOURCE}
+        # API에서 빠진 행(is_present=0)도 지우지 않고 화면에 계속 싣는다 (사용자 결정 2026-11-18, 전체 데이터).
+        # 각 레코드에 __gone("1"=API에서 더 이상 조회 안 됨)·__last(마지막 확인 시각)를 붙여 상태를 표시한다.
+        P, present_count = {}, {}
+        for a in SOURCE:
+            recs = []
+            for r, pr, ls in self.rows_all(a):
+                r["__gone"] = "" if pr else "1"
+                r["__last"] = ls or ""
+                recs.append(r)
+            P[a] = recs
+            present_count[a] = sum(1 for r in recs if not r["__gone"])
+        ST = lambda r: "공개 종료" if r.get("__gone") else "공개 중"
+        LS = lambda r: (r.get("__last") or "")[:10] if r.get("__gone") else ""
         detail = {v(r, "ITEM_SEQ"): r for r in P["drug_permit_detail"]}
         S = lambda r: v(r, "ITEM_SEQ")
 
@@ -137,7 +149,7 @@ class Exporter:
             status = v(r, "CANCEL_NAME") or "정상"
             spc = "전문" if v(r, "SPCLTY_PBLC").startswith("전문") else ("일반" if v(r, "SPCLTY_PBLC") else "")
             atc = v(d, "ATC_CODE")
-            flags = ("N" if v(d, "NEWDRUG_CLASS_NAME") == "신약" else "") + ("R" if v(d, "RARE_DRUG_YN") == "Y" else "")
+            flags = ("N" if v(d, "NEWDRUG_CLASS_NAME") == "신약" else "") + ("R" if v(d, "RARE_DRUG_YN") == "Y" else "") + ("G" if r.get("__gone") else "")  # G = API에서 더 이상 조회 안 됨
             ingr_kr = cut(strip_codes(v(d, "MAIN_ITEM_INGR")), 60)
             row = [seq, v(r, "ITEM_NAME"), v(r, "ENTP_NAME"), biz(v(r, "BIZRNO")), ymd(v(r, "ITEM_PERMIT_DATE")),
                    spc, status, ingr_kr, cut(v(r, "ITEM_INGR_NAME"), 60), atc, flags, v(r, "PERMIT_KIND_CODE"),
@@ -150,7 +162,8 @@ class Exporter:
                 "type": v(r, "PRDUCT_TYPE"), "edi": v(r, "EDI_CODE"), "cnsgn": v(d, "CNSGN_MANUF"),
                 "narcotic": v(d, "NARCOTIC_KIND_CODE"), "chart": cut(v(d, "CHART"), 300),
                 "storage": v(d, "STORAGE_METHOD"), "valid": v(d, "VALID_TERM"), "pack": cut(v(d, "PACK_UNIT"), 200),
-                "material": cut(v(d, "MATERIAL_NAME"), 4000),  # 화면에서 성분 표로 풀어 보여 주므로 넉넉히 "change_date": ymd(v(d, "CHANGE_DATE")),
+                "material": cut(v(d, "MATERIAL_NAME"), 4000),  # 화면에서 성분 표로 풀어 보여 주므로 넉넉히
+                "change_date": ymd(v(d, "CHANGE_DATE")),
                 "change_hist": cut(v(d, "GBN_NAME"), 4000), "reexam": v(d, "REEXAM_TARGET"),
                 "reexam_date": v(d, "REEXAM_DATE"), "ingr_eng": v(d, "MAIN_INGR_ENG"),
                 "doc_ee": v(d, "EE_DOC_ID"), "doc_ud": v(d, "UD_DOC_ID"), "doc_nb": v(d, "NB_DOC_ID"),
@@ -184,27 +197,27 @@ class Exporter:
                 continue
             row = [ymd(v(r, "REPORT_DATE")), v(r, "ITEM_NAME"), v(r, "ENTP_NAME"), biz(v(r, "BIZRNO")), S(r),
                    v(r, "SUSPEND_REPORT_FLAG"), ymd(v(r, "SUSPEND_DATE")), cut(v(r, "SUSPEND_REASON"), 200),
-                   v(r, "REPORT_PGS_CODE"), v(r, "INV_QTY")]
+                   v(r, "REPORT_PGS_CODE"), v(r, "INV_QTY"), ST(r), LS(r)]  # [10] 공개 상태 [11] 마지막 확인일
             suspends.append(row)
         suspends.sort(key=lambda x: x[0], reverse=True)
         for row in suspends:
             if row[4]:
-                rel[row[4]]["suspend"].append([row[0], row[5], row[6], row[7], row[8]])
+                rel[row[4]]["suspend"].append([row[0], row[5], row[6], row[7], row[8], row[10]])
             if row[3]:
-                by_biz[row[3]]["suspend"].append([row[0], row[1], row[4], row[5], row[6], row[8]])
+                by_biz[row[3]]["suspend"].append([row[0], row[1], row[4], row[5], row[6], row[8], row[10]])
 
         shortages = []
         for r in P["supply_shortage"]:
             row = [ymd(v(r, "REPORT_DATE")), v(r, "ITEM_NAME"), v(r, "ENTP_NAME"), biz(v(r, "BIZRNO")), S(r),
                    cut(v(r, "SHORT_SUPPLY_REASON"), 200), ymd(v(r, "SUPPLY_PLAN_DATE")), v(r, "REPORT_PGS_CODE"),
-                   cut(v(r, "TREATMENT_INFU"), 200)]
+                   cut(v(r, "TREATMENT_INFU"), 200), ST(r), LS(r)]  # [9] 공개 상태 [10] 마지막 확인일
             shortages.append(row)
         shortages.sort(key=lambda x: x[0], reverse=True)
         for row in shortages:
             if row[4]:
-                rel[row[4]]["shortage"].append([row[0], row[5], row[6], row[7]])
+                rel[row[4]]["shortage"].append([row[0], row[5], row[6], row[7], row[9]])
             if row[3]:
-                by_biz[row[3]]["shortage"].append([row[0], row[1], row[4], row[5], row[7]])
+                by_biz[row[3]]["shortage"].append([row[0], row[1], row[4], row[5], row[7], row[9]])
 
         # 행정처분은 공개 기간이 끝나면 API에서 빠진다. 사용자 결정(2026-11-18): 지우지 않고 계속 표시한다.
         # 수집 DB는 원래 삭제하지 않고 is_present=0으로만 표시하므로, 여기서 그 행까지 포함하고 상태를 붙인다.
@@ -228,7 +241,7 @@ class Exporter:
         letters = []
         for r in P["safety_letter"]:
             letters.append([ymd(v(r, "PBANC_YMD")), v(r, "TITLE"), v(r, "CHRG_DEP"), v(r, "ATTACH_FILE_URL"),
-                            cut(v(r, "PBANC_CONT"), 300), v(r, "SAFT_LETT_NO")])
+                            cut(v(r, "PBANC_CONT"), 300), v(r, "SAFT_LETT_NO"), ST(r), LS(r)])
         letters.sort(key=lambda x: x[0], reverse=True)
 
         # 생산·수입 (생산=백만원, 수입=달러)
@@ -267,18 +280,18 @@ class Exporter:
         gmps = []
         for r in P["gmp"]:
             gmps.append([v(r, "BSSH_NM"), biz(v(r, "BIZRNO")), v(r, "KGMP_BGMP_NAME"), v(r, "GMP_INGR_MM_GROUP_NAME"),
-                         v(r, "FCTR_ADDR"), ymd(v(r, "VLD_PRD_YMD"))])
+                         v(r, "FCTR_ADDR"), ymd(v(r, "VLD_PRD_YMD")), ST(r)])
         gmps.sort(key=lambda x: x[5], reverse=True)
         overseas = []
         for r in P["overseas_mfr"]:
             overseas.append([v(r, "BSSH_NM"), biz(v(r, "BIZRNO")), v(r, "MFTR_NM"), v(r, "NATN_CD_NM"),
-                             cut(v(r, "MFTR_ADDR"), 120), v(r, "MFTR_PRMSN_NO")])
+                             cut(v(r, "MFTR_ADDR"), 120), v(r, "MFTR_PRMSN_NO"), ST(r)])
         for row in gmps:
             if row[1]:
-                by_biz[row[1]]["gmp"].append([row[2], row[3], row[4], row[5]])
+                by_biz[row[1]]["gmp"].append([row[2], row[3], row[4], row[5], row[6]])
         for row in overseas:
             if row[1]:
-                by_biz[row[1]]["overseas"].append([row[2], row[3], row[5]])
+                by_biz[row[1]]["overseas"].append([row[2], row[3], row[5], row[6]])
 
         # 품목 상세에 관련 이력 붙이기
         for seq, kinds in rel.items():
@@ -302,7 +315,7 @@ class Exporter:
             if not b:
                 continue
             addr = v(r, "ADRES")
-            lic[b].append([v(r, "INDUTY"), ymd(v(r, "PRMISN_DT")), v(r, "PRMISN_NO"), addr])
+            lic[b].append([v(r, "INDUTY"), ymd(v(r, "PRMISN_DT")), v(r, "PRMISN_NO"), addr, ST(r)])
             lic_names[b][v(r, "ENTRPS")] += 1  # 대표 상호는 업체허가 목록을 우선
             if addr and addr not in regions[b]:
                 regions[b].append(addr)
@@ -377,7 +390,7 @@ class Exporter:
             if row[4]:
                 permit_year_kind[row[4][:4]][row[11] or "기타"] += 1
         cancel_year = Counter(row[12][:4] for row in drugs if row[12])
-        active_rows = [row for row in drugs if row[6] == "정상"]
+        active_rows = [row for row in drugs if row[6] == "정상" and "G" not in row[10]]  # API에서 빠진 품목은 유효로 세지 않음
         spc = Counter(row[5] or "미상" for row in active_rows)
         atc = Counter((row[9][:1] if row[9] else "미상") for row in active_rows)
         ptype = Counter()
@@ -434,7 +447,7 @@ class Exporter:
             name, = con.execute("SELECT name FROM api_source WHERE api_id=?", (a,)).fetchone() or (a,)
             lastok = con.execute("SELECT MAX(finished_at) FROM collect_api_run WHERE api_id=? AND status IN ('complete','incremental')",
                                  (a,)).fetchone()[0]
-            api_meta.append({"id": a, "name": name, "count": len(P[a]), "last": lastok, "baseline": baseline.get(a),
+            api_meta.append({"id": a, "name": name, "count": present_count[a], "kept": len(P[a]), "last": lastok, "baseline": baseline.get(a),
                              "url": f"https://www.data.go.kr/data/{did}/openapi.do"})
 
         def span(rows, idx):
@@ -458,8 +471,8 @@ class Exporter:
                 "recalls_30": len(recent(recalls, 0)), "admins_30": len(recent(admins, 0)),
                 "suspends_30": len(recent(suspends, 0)), "shortages_30": len(recent(shortages, 0)),
                 "letters_30": len(recent(letters, 0)),
-                "recalls_total": len(recalls), "recalls_gone": sum(1 for r in recalls if r[7] == "공개 종료"), "admins_total": len(admins), "admins_gone": admins_gone, "suspends_total": len(suspends),
-                "shortages_total": len(shortages), "gmp_total": len(gmps), "overseas_total": len(overseas),
+                "recalls_total": len(recalls), "recalls_gone": sum(1 for r in recalls if r[7] == "공개 종료"), "admins_total": len(admins), "admins_gone": admins_gone, "suspends_total": len(suspends), "suspends_gone": sum(1 for r in suspends if r[10] == "공개 종료"),
+                "shortages_total": len(shortages), "shortages_gone": sum(1 for r in shortages if r[9] == "공개 종료"), "items_gone": sum(1 for r in drugs if "G" in r[10]), "gmp_total": len(gmps), "overseas_total": len(overseas),
                 "letters_total": len(letters),
             },
             "new_permits": [[r[0], r[1], r[2], r[3], r[4], r[5], r[11]] for r in new_permits[:15]],

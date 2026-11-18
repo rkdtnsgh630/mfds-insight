@@ -269,6 +269,23 @@ class IncrementalTests(unittest.TestCase):
         self.assertEqual(r["status"], "failed")
 
 
+class MigrateKeyTests(unittest.TestCase):
+    def test_hash_keys_move_to_new_key_without_change_log(self):
+        con = S.connect(":memory:")
+        old = dict(API, id="k", key=None)
+        run_id = S.start_run(con, "test", "t")
+        collect_api(con, FakeClient([[{"NO": "A1", "v": 1}, {"NO": "A2", "v": 2}]]), run_id, old, 10)
+        self.assertTrue(all(k.startswith("h:") for (k,) in con.execute("SELECT record_key FROM raw_record")))
+        new = dict(old, key=["NO"])
+        self.assertEqual(S.migrate_keys(con, new), 2)
+        self.assertEqual(sorted(k for (k,) in con.execute("SELECT record_key FROM raw_record")), ["A1", "A2"])
+        self.assertEqual(S.migrate_keys(con, new), 0)  # 두 번째는 할 일 없음
+        # 이후 같은 내용을 다시 받으면 변경 없음, 값이 바뀌면 '변경'(삭제+추가가 아님)
+        run2 = S.start_run(con, "test", "t")
+        r = collect_api(con, FakeClient([[{"NO": "A1", "v": 1}, {"NO": "A2", "v": 9}]]), run2, new, 10)
+        self.assertEqual((r["added"], r["updated"], r["removed"]), (0, 1, 0))
+
+
 class RegistryTests(unittest.TestCase):
     def test_ids_unique_and_selection(self):
         ids = [a["id"] for a in APIS]
