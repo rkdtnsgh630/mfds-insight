@@ -347,8 +347,8 @@ V.company = async biz => {
     ${kpi("공급중단 · 부족", `${fmt(c.suspend.length)} · ${fmt(c.shortage.length)}`, "신고 기록")}
   </div>
   <div class="grid2">
-    ${panel("연도별 생산실적 (백만원)", colChart(years, years.map(y => c.prod[y].p || 0), { vf: wonM, label: "연도별 생산실적" }) + srcline(["production_import"], "금액 단위 백만원"))}
-    ${panel("연도별 수입실적 (달러)", colChart(years, years.map(y => c.prod[y].i || 0), { c: "var(--accent2)", vf: usd, tf: v => v >= 1e8 ? (v / 1e8) + "억" : v >= 1e4 ? fmt(v / 1e4) + "만" : fmt(v), label: "연도별 수입실적" }) + srcline(["production_import"], "금액 단위 달러"))}
+    ${panel("연도별 생산실적 (백만원)", colChart(years, years.map(y => c.prod[y].p || 0), { vf: wonM, label: "연도별 생산실적" }) + srcline(["production_import"], "금액 단위 백만원 · 공장 구분 없는 품목·업체 단위 자료"))}
+    ${panel("연도별 수입실적 (달러)", colChart(years, years.map(y => c.prod[y].i || 0), { c: "var(--accent2)", vf: usd, tf: v => v >= 1e8 ? (v / 1e8) + "억" : v >= 1e4 ? fmt(v / 1e4) + "만" : fmt(v), label: "연도별 수입실적" }) + srcline(["production_import"], "금액 단위 달러 · 공장 구분 없는 품목·업체 단위 자료"))}
   </div>
   ${panel(`허가 품목 (${fmt(c.items.length)})`, items.html)}
   <div class="grid2">
@@ -456,7 +456,7 @@ V.drug = async seq => {
     ${panel(`공급부족 신고 (${(rel.shortage || []).length})`, tl(rel.shortage, x => tr(x[0], `<span class="pill p-warn">부족</span>`, `${esc(x[3])}<div class="muted small">${esc(x[1])}</div>`)) + srcline(["supply_shortage"]))}
     ${panel(`행정처분 (${(rel.admin || []).length})`, tl(rel.admin, x => tr(x[0], `<span class="pill p-mute">${esc(x[1])}</span>`, esc(x[2]))) + srcline(["admin_action"]))}
   </div>
-  ${prodRows.length ? `<div class="grid2">${pP.some(v => v) ? panel("연도별 생산실적", colChart(years, pP, { vf: wonM, label: "연도별 생산실적" }) + srcline(["production_import"], "금액 단위 백만원")) : ""}${pI.some(v => v) ? panel("연도별 수입실적", colChart(years, pI, { c: "var(--accent2)", vf: usd, tf: v => v >= 1e8 ? (v / 1e8) + "억" : v >= 1e4 ? fmt(v / 1e4) + "만" : fmt(v), label: "연도별 수입실적" }) + srcline(["production_import"], "금액 단위 달러")) : ""}</div>` : panel("연도별 생산·수입실적", empty("생산·수입실적 기록이 없습니다."))}`;
+  ${prodRows.length ? `<div class="grid2">${pP.some(v => v) ? panel("연도별 생산실적", colChart(years, pP, { vf: wonM, label: "연도별 생산실적" }) + srcline(["production_import"], "금액 단위 백만원 · 공장 구분 없는 품목·업체 단위 자료")) : ""}${pI.some(v => v) ? panel("연도별 수입실적", colChart(years, pI, { c: "var(--accent2)", vf: usd, tf: v => v >= 1e8 ? (v / 1e8) + "억" : v >= 1e4 ? fmt(v / 1e4) + "만" : fmt(v), label: "연도별 수입실적" }) + srcline(["production_import"], "금액 단위 달러 · 공장 구분 없는 품목·업체 단위 자료")) : ""}</div>` : panel("연도별 생산·수입실적", empty("생산·수입실적 기록이 없습니다."))}`;
   return { html };
 };
 
