@@ -6,7 +6,7 @@
 
 - Phase 1 (API 조사): 공식 목록 59개 API 명세 확인, 24개 활용 승인, 23개 실제 호출 검증 → [docs/API_CATALOG.md](docs/API_CATALOG.md)
 - Phase 2 (수집 기반): 수집기 1차 구현 — 이 저장소의 `collector/`
-- 홈페이지: 아직 없음
+- 홈페이지: https://rkdtnsgh630.github.io/mfds-insight/ (GitHub Pages, 검색엔진 비노출 `noindex`). 수집 → site 워크플로가 끝나면 자동 배포
 
 ## 수집기
 

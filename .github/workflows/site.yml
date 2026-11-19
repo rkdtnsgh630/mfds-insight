@@ -2,7 +2,7 @@ name: site
 
 # 수집 DB로 화면용 JSON을 만들어 Release(data-latest)에 site-data.tar.gz로 올린다.
 # 수집(collect)이 성공하면 자동으로 이어서 실행된다. API는 호출하지 않는다.
-# (GitHub Pages 공개 배포 단계는 사용자 승인 후 추가)
+# 이어서 GitHub Pages(https://rkdtnsgh630.github.io/mfds-insight/)에 배포한다. 검색엔진 노출은 막는다(noindex).
 on:
   workflow_dispatch:
   workflow_run:
@@ -11,6 +11,8 @@ on:
 
 permissions:
   contents: write
+  pages: write
+  id-token: write
 
 concurrency:
   group: site
@@ -42,3 +44,20 @@ jobs:
           tar -czf site-data.tar.gz -C site data
           ls -la site-data.tar.gz
           gh release upload data-latest site-data.tar.gz --clobber --repo "$GITHUB_REPOSITORY"
+      - name: Pages 배포 파일 준비 (검색엔진 차단 점검)
+        run: |
+          grep -q 'name="robots" content="noindex' site/index.html || { echo "오류: index.html에 noindex 없음"; exit 1; }
+          touch site/.nojekyll
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

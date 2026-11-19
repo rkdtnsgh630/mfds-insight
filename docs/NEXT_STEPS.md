@@ -23,7 +23,7 @@
 4-3. ~~상세 증분 수집 구현~~ (2026-11-18): `collector/run.py` collect_incremental, `store.py` drop_fields·migrate. 첫 실제 실행에서 소요 시간·DB 크기 확인 필요
 5. 보류(hold) API는 특허·임상·제네릭 메뉴 채택 시 수집
 6. ~~사이트용 데이터 내보내기~~ 완료 (2026-11-18, sitebuild/export.py)
-7. **[사용자 승인 대기] GitHub Pages 공개 배포**: site/ + Release의 site-data를 Pages로 배포하는 단계를 site.yml에 추가
+7. **[완료 2026-11-19] GitHub Pages 공개 배포 (검색엔진 noindex)**: site/ + Release의 site-data를 Pages로 배포하는 단계를 site.yml에 추가
 8. 생산·수입실적 수집이 느린 원인 확인 (첫 수집 8분 → 두 번째 약 25분): 페이지별 소요 시간 로그 추가
 
 ## Phase 2 진입 준비 (수집 기반) — 이전 메모

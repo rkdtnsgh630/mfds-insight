@@ -72,4 +72,4 @@
 | 화면용 데이터 생성 | `sitebuild/export.py` → JSON 209개 (약 87MB, 압축 17MB). Release `site-data.tar.gz`. 수집 성공 시 `site.yml`이 자동 실행 | Actions site run 2회 성공, 단위 시험 포함 |
 | 화면 구현 | `site/` 정적 사이트: 종합 대시보드, 제약회사(목록·상세), 의약품(목록·상세), 산업 통계, 규제·품질, 공급·안전, 변경 모니터링, 통합검색, 데이터 출처·기준 | 로컬 미리보기에서 전 화면 렌더링·오류 없음 확인 (데스크톱·모바일 375px) |
 | 비공개 미리보기 | Claude 아티팩트(비공개)로 게시. 아티팩트 안에서는 CSV 내려받기가 막힘 (GitHub Pages에서는 동작) | https://claude.ai/artifact/FQmMPf9mmhC2oyaunsYVgW |
-| 공개 배포 (GitHub Pages) | **미수행** — 사용자 승인 필요 | |
+| 공개 배포 (GitHub Pages) | site.yml에 배포 단계 추가(2026-11-19). 검색엔진 차단(noindex meta). 저장소 Settings → Pages → Source를 GitHub Actions로 설정해야 동작 | https://rkdtnsgh630.github.io/mfds-insight/ |
